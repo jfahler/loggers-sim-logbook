@@ -24,12 +24,38 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
         throw APIError.invalidArgument("filename and fileData are required");
       }
 
+      // Validate filename
+      if (typeof req.filename !== 'string' || req.filename.trim().length === 0) {
+        throw APIError.invalidArgument("filename must be a non-empty string");
+      }
+
+      // Validate file extension
+      const validExtensions = ['.acmi', '.txt'];
+      const fileExtension = req.filename.toLowerCase().substring(req.filename.lastIndexOf('.'));
+      if (!validExtensions.includes(fileExtension)) {
+        throw APIError.invalidArgument("file must have .acmi or .txt extension");
+      }
+
       // Validate base64 data
+      if (typeof req.fileData !== 'string' || req.fileData.trim().length === 0) {
+        throw APIError.invalidArgument("fileData must be a non-empty string");
+      }
+
       let fileBuffer: Buffer;
       try {
         fileBuffer = Buffer.from(req.fileData, 'base64');
+        
+        // Validate buffer size (max 50MB)
+        if (fileBuffer.length > 50 * 1024 * 1024) {
+          throw APIError.invalidArgument("file size exceeds 50MB limit");
+        }
+        
+        // Validate buffer is not empty
+        if (fileBuffer.length === 0) {
+          throw APIError.invalidArgument("file data is empty");
+        }
       } catch (error) {
-        throw APIError.invalidArgument("Invalid base64 file data");
+        throw APIError.invalidArgument("invalid base64 file data");
       }
 
       // Store the file in object storage
@@ -38,12 +64,28 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
           contentType: 'application/octet-stream'
         });
       } catch (error) {
-        throw APIError.internal(`Failed to store file: ${error}`);
+        console.error('Object storage error:', error);
+        throw APIError.internal(`failed to store file: ${error}`);
       }
 
       // Parse the Tacview file content
-      const fileContent = fileBuffer.toString('utf-8');
+      let fileContent: string;
+      try {
+        fileContent = fileBuffer.toString('utf-8');
+      } catch (error) {
+        throw APIError.invalidArgument("file content is not valid UTF-8 text");
+      }
+
       const flightData = parseTacviewFile(fileContent, req.filename);
+
+      // Validate parsed flight data
+      if (!flightData.pilotName || flightData.pilotName.trim().length === 0) {
+        throw APIError.invalidArgument("could not extract pilot name from file");
+      }
+
+      if (!flightData.aircraftType || flightData.aircraftType.trim().length === 0) {
+        throw APIError.invalidArgument("could not extract aircraft type from file");
+      }
 
       // Create or get pilot
       let pilot = await logbookDB.queryRow<{ id: number }>`
@@ -59,7 +101,7 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
       }
 
       if (!pilot) {
-        throw APIError.internal("Failed to create or retrieve pilot");
+        throw APIError.internal("failed to create or retrieve pilot");
       }
 
       // Create flight record
@@ -78,19 +120,24 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
       `;
 
       if (!flight) {
-        throw APIError.internal("Failed to create flight record");
+        throw APIError.internal("failed to create flight record");
       }
 
       // Create flight events
       for (const event of flightData.events) {
-        await logbookDB.exec`
-          INSERT INTO flight_events (
-            flight_id, event_type, event_time, description, target_name, weapon_used
-          ) VALUES (
-            ${flight.id}, ${event.eventType}, ${event.eventTime}, 
-            ${event.description || null}, ${event.targetName || null}, ${event.weaponUsed || null}
-          )
-        `;
+        try {
+          await logbookDB.exec`
+            INSERT INTO flight_events (
+              flight_id, event_type, event_time, description, target_name, weapon_used
+            ) VALUES (
+              ${flight.id}, ${event.eventType}, ${event.eventTime}, 
+              ${event.description || null}, ${event.targetName || null}, ${event.weaponUsed || null}
+            )
+          `;
+        } catch (error) {
+          console.error('Error inserting flight event:', error);
+          // Continue processing other events
+        }
       }
 
       return {
@@ -102,7 +149,7 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
         throw error;
       }
       console.error('Upload processing error:', error);
-      throw APIError.internal(`Failed to process Tacview file: ${error}`);
+      throw APIError.internal(`failed to process Tacview file: ${error}`);
     }
   }
 );

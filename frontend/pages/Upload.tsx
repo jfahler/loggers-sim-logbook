@@ -19,9 +19,17 @@ export function Upload() {
     mutationFn: async (fileData: { filename: string; fileData: string }) => {
       try {
         return await backend.logbook.uploadTacview(fileData);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Upload API error:', error);
-        throw error;
+        
+        // Extract more specific error information
+        if (error?.body?.message) {
+          throw new Error(error.body.message);
+        } else if (error?.message) {
+          throw new Error(error.message);
+        } else {
+          throw new Error('Failed to upload file');
+        }
       }
     },
     onSuccess: async (data) => {
@@ -83,8 +91,18 @@ export function Upload() {
       if (error?.message) {
         if (error.message.includes('Failed to fetch')) {
           errorMessage = "Network error: Unable to connect to server";
-        } else if (error.message.includes('400')) {
-          errorMessage = "Invalid file format or corrupted file";
+        } else if (error.message.includes('filename and fileData are required')) {
+          errorMessage = "Invalid file data. Please try selecting the file again.";
+        } else if (error.message.includes('invalid base64 file data')) {
+          errorMessage = "File format error. Please ensure you're uploading a valid Tacview file.";
+        } else if (error.message.includes('file size exceeds')) {
+          errorMessage = "File is too large. Please select a file smaller than 50MB.";
+        } else if (error.message.includes('file must have .acmi or .txt extension')) {
+          errorMessage = "Invalid file type. Please select a .acmi or .txt file.";
+        } else if (error.message.includes('could not extract pilot name')) {
+          errorMessage = "Unable to parse pilot information from the file. Please ensure it's a valid Tacview file.";
+        } else if (error.message.includes('could not extract aircraft type')) {
+          errorMessage = "Unable to parse aircraft information from the file. Please ensure it's a valid Tacview file.";
         } else {
           errorMessage = error.message;
         }
@@ -128,7 +146,14 @@ export function Upload() {
   };
 
   const handleUpload = async () => {
-    if (!file) return;
+    if (!file) {
+      toast({
+        title: "No File Selected",
+        description: "Please select a file to upload",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       const reader = new FileReader();
@@ -136,22 +161,32 @@ export function Upload() {
       reader.onload = () => {
         try {
           const result = reader.result as string;
+          
+          if (!result) {
+            throw new Error('Failed to read file');
+          }
+          
           // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
           const base64Data = result.split(',')[1];
           
-          if (!base64Data) {
+          if (!base64Data || base64Data.trim().length === 0) {
             throw new Error('Failed to extract file data');
           }
           
+          // Validate the filename
+          if (!file.name || file.name.trim().length === 0) {
+            throw new Error('Invalid filename');
+          }
+          
           uploadMutation.mutate({
-            filename: file.name,
+            filename: file.name.trim(),
             fileData: base64Data,
           });
         } catch (error) {
           console.error('Error processing file data:', error);
           toast({
             title: "File Processing Error",
-            description: "Failed to process the selected file",
+            description: "Failed to process the selected file. Please try again.",
             variant: "destructive",
           });
         }
@@ -160,7 +195,7 @@ export function Upload() {
       reader.onerror = () => {
         toast({
           title: "File Error",
-          description: "Failed to read the selected file",
+          description: "Failed to read the selected file. Please try again.",
           variant: "destructive",
         });
       };
@@ -170,7 +205,7 @@ export function Upload() {
       console.error('Error reading file:', error);
       toast({
         title: "File Error",
-        description: "Failed to read the selected file",
+        description: "Failed to read the selected file. Please try again.",
         variant: "destructive",
       });
     }
