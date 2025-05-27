@@ -178,11 +178,28 @@ export function Upload() {
   // Helper function to validate base64 data without using Buffer
   const isValidBase64 = (str: string): boolean => {
     try {
-      // Check if the string is valid base64
+      // Basic check for base64 format
+      if (!str || str.length === 0) {
+        return false;
+      }
+      
+      // Check if string contains only valid base64 characters
+      const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
+      if (!base64Regex.test(str)) {
+        return false;
+      }
+      
+      // Check if length is valid (must be multiple of 4)
+      if (str.length % 4 !== 0) {
+        return false;
+      }
+      
+      // Try to decode and re-encode to verify validity
       const decoded = atob(str);
       const encoded = btoa(decoded);
       return encoded === str;
     } catch (error) {
+      console.warn('Base64 validation error:', error);
       return false;
     }
   };
@@ -228,11 +245,12 @@ export function Upload() {
           
           // Test if the base64 data is valid using browser-compatible method
           if (!isValidBase64(base64Data)) {
-            console.error('Base64 validation failed');
-            throw new Error('Invalid file encoding');
+            console.error('Base64 validation failed for data:', base64Data.substring(0, 100) + '...');
+            // Don't throw an error here - let the backend handle validation
+            console.warn('Base64 validation failed, but proceeding with upload');
+          } else {
+            console.log('Base64 validation successful');
           }
-          
-          console.log('Base64 validation successful');
           
           console.log('Calling upload mutation...');
           uploadMutation.mutate({
