@@ -17,22 +17,43 @@ export function Upload() {
 
   const uploadMutation = useMutation({
     mutationFn: async (fileData: { filename: string; fileData: string }) => {
+      console.log('Starting upload mutation with:', {
+        filename: fileData.filename,
+        dataLength: fileData.fileData.length
+      });
+
       try {
-        return await backend.logbook.uploadTacview(fileData);
+        const result = await backend.logbook.uploadTacview(fileData);
+        console.log('Upload successful:', result);
+        return result;
       } catch (error: any) {
-        console.error('Upload API error:', error);
+        console.error('Upload API error details:', {
+          error,
+          message: error?.message,
+          body: error?.body,
+          status: error?.status,
+          stack: error?.stack
+        });
         
-        // Extract more specific error information
+        // Handle different types of errors
+        if (error?.message?.includes('Failed to fetch')) {
+          throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
+        }
+        
         if (error?.body?.message) {
           throw new Error(error.body.message);
-        } else if (error?.message) {
-          throw new Error(error.message);
-        } else {
-          throw new Error('Failed to upload file');
         }
+        
+        if (error?.message) {
+          throw new Error(error.message);
+        }
+        
+        throw new Error('An unexpected error occurred while uploading the file');
       }
     },
     onSuccess: async (data) => {
+      console.log('Upload mutation success:', data);
+      
       toast({
         title: "Success",
         description: data.message,
@@ -45,7 +66,10 @@ export function Upload() {
       // Send to Discord if requested
       if (sendToDiscord && data.flightId) {
         try {
+          console.log('Fetching flight details for Discord:', data.flightId);
           const flight = await backend.logbook.getFlight({ id: data.flightId });
+          
+          console.log('Sending to Discord:', flight);
           await backend.discord.sendFlightSummary({
             flightId: flight.id,
             pilotName: flight.pilotName,
@@ -83,14 +107,14 @@ export function Upload() {
       }
     },
     onError: (error: any) => {
-      console.error('Upload error:', error);
+      console.error('Upload mutation error:', error);
       
       let errorMessage = "Failed to upload and process the Tacview file";
       
       // Try to extract more specific error information
       if (error?.message) {
-        if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Network error: Unable to connect to server";
+        if (error.message.includes('Network error')) {
+          errorMessage = error.message;
         } else if (error.message.includes('filename and fileData are required')) {
           errorMessage = "Invalid file data. Please try selecting the file again.";
         } else if (error.message.includes('invalid base64 file data')) {
@@ -119,6 +143,12 @@ export function Upload() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
+      console.log('File selected:', {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type
+      });
+      
       // Validate file size (max 50MB)
       if (selectedFile.size > 50 * 1024 * 1024) {
         toast({
@@ -155,6 +185,8 @@ export function Upload() {
       return;
     }
 
+    console.log('Starting file upload process for:', file.name);
+
     try {
       const reader = new FileReader();
       
@@ -166,6 +198,8 @@ export function Upload() {
             throw new Error('Failed to read file');
           }
           
+          console.log('File read successfully, data URL length:', result.length);
+          
           // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
           const base64Data = result.split(',')[1];
           
@@ -173,11 +207,23 @@ export function Upload() {
             throw new Error('Failed to extract file data');
           }
           
+          console.log('Base64 data extracted, length:', base64Data.length);
+          
           // Validate the filename
           if (!file.name || file.name.trim().length === 0) {
             throw new Error('Invalid filename');
           }
           
+          // Test if the base64 data is valid
+          try {
+            const testBuffer = Buffer.from(base64Data, 'base64');
+            console.log('Base64 validation successful, buffer size:', testBuffer.length);
+          } catch (base64Error) {
+            console.error('Base64 validation failed:', base64Error);
+            throw new Error('Invalid file encoding');
+          }
+          
+          console.log('Calling upload mutation...');
           uploadMutation.mutate({
             filename: file.name.trim(),
             fileData: base64Data,
@@ -192,7 +238,8 @@ export function Upload() {
         }
       };
       
-      reader.onerror = () => {
+      reader.onerror = (error) => {
+        console.error('FileReader error:', error);
         toast({
           title: "File Error",
           description: "Failed to read the selected file. Please try again.",
@@ -200,6 +247,7 @@ export function Upload() {
         });
       };
       
+      console.log('Starting file read...');
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error reading file:', error);
@@ -304,6 +352,29 @@ export function Upload() {
           </div>
         </CardContent>
       </Card>
+
+      {process.env.NODE_ENV === 'development' && (
+        <Card className="max-w-2xl border-yellow-200 bg-yellow-50">
+          <CardHeader>
+            <CardTitle className="text-yellow-800">Debug Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <p><strong>Upload Status:</strong> {uploadMutation.isPending ? 'In Progress' : 'Ready'}</p>
+              <p><strong>File Selected:</strong> {file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)` : 'None'}</p>
+              <p><strong>Send to Discord:</strong> {sendToDiscord ? 'Yes' : 'No'}</p>
+              {uploadMutation.error && (
+                <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded">
+                  <p className="text-red-800"><strong>Last Error:</strong></p>
+                  <pre className="text-xs text-red-700 whitespace-pre-wrap">
+                    {JSON.stringify(uploadMutation.error, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
