@@ -16,7 +16,7 @@ export interface UploadTacviewResponse {
 
 // Uploads a Tacview file and processes it to extract flight data.
 export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
-  { expose: true, method: "POST", path: "/tacview/upload" },
+  { expose: true, method: "POST", path: "/logbook/tacview/upload" },
   async (req) => {
     try {
       // Validate input
@@ -24,11 +24,22 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
         throw APIError.invalidArgument("filename and fileData are required");
       }
 
+      // Validate base64 data
+      let fileBuffer: Buffer;
+      try {
+        fileBuffer = Buffer.from(req.fileData, 'base64');
+      } catch (error) {
+        throw APIError.invalidArgument("Invalid base64 file data");
+      }
+
       // Store the file in object storage
-      const fileBuffer = Buffer.from(req.fileData, 'base64');
-      await tacviewBucket.upload(req.filename, fileBuffer, {
-        contentType: 'application/octet-stream'
-      });
+      try {
+        await tacviewBucket.upload(req.filename, fileBuffer, {
+          contentType: 'application/octet-stream'
+        });
+      } catch (error) {
+        throw APIError.internal(`Failed to store file: ${error}`);
+      }
 
       // Parse the Tacview file content
       const fileContent = fileBuffer.toString('utf-8');
@@ -90,6 +101,7 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
       if (error instanceof APIError) {
         throw error;
       }
+      console.error('Upload processing error:', error);
       throw APIError.internal(`Failed to process Tacview file: ${error}`);
     }
   }

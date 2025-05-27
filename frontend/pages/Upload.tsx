@@ -17,7 +17,12 @@ export function Upload() {
 
   const uploadMutation = useMutation({
     mutationFn: async (fileData: { filename: string; fileData: string }) => {
-      return backend.logbook.uploadTacview(fileData);
+      try {
+        return await backend.logbook.uploadTacview(fileData);
+      } catch (error) {
+        console.error('Upload API error:', error);
+        throw error;
+      }
     },
     onSuccess: async (data) => {
       toast({
@@ -63,12 +68,31 @@ export function Upload() {
       }
       
       setFile(null);
+      // Reset the file input
+      const fileInput = document.getElementById('tacview-file') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Upload error:', error);
+      
+      let errorMessage = "Failed to upload and process the Tacview file";
+      
+      // Try to extract more specific error information
+      if (error?.message) {
+        if (error.message.includes('Failed to fetch')) {
+          errorMessage = "Network error: Unable to connect to server";
+        } else if (error.message.includes('400')) {
+          errorMessage = "Invalid file format or corrupted file";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Upload Failed",
-        description: "Failed to upload and process the Tacview file",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -77,6 +101,28 @@ export function Upload() {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
+      // Validate file size (max 50MB)
+      if (selectedFile.size > 50 * 1024 * 1024) {
+        toast({
+          title: "File Too Large",
+          description: "Please select a file smaller than 50MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Validate file extension
+      const validExtensions = ['.acmi', '.txt'];
+      const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+      if (!validExtensions.includes(fileExtension)) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select a .acmi or .txt file",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       setFile(selectedFile);
     }
   };
@@ -88,14 +134,27 @@ export function Upload() {
       const reader = new FileReader();
       
       reader.onload = () => {
-        const result = reader.result as string;
-        // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
-        const base64Data = result.split(',')[1];
-        
-        uploadMutation.mutate({
-          filename: file.name,
-          fileData: base64Data,
-        });
+        try {
+          const result = reader.result as string;
+          // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
+          const base64Data = result.split(',')[1];
+          
+          if (!base64Data) {
+            throw new Error('Failed to extract file data');
+          }
+          
+          uploadMutation.mutate({
+            filename: file.name,
+            fileData: base64Data,
+          });
+        } catch (error) {
+          console.error('Error processing file data:', error);
+          toast({
+            title: "File Processing Error",
+            description: "Failed to process the selected file",
+            variant: "destructive",
+          });
+        }
       };
       
       reader.onerror = () => {
@@ -142,7 +201,7 @@ export function Upload() {
               disabled={uploadMutation.isPending}
             />
             <p className="text-sm text-gray-600">
-              Supported formats: .acmi, .txt (Tacview files)
+              Supported formats: .acmi, .txt (Tacview files) • Max size: 50MB
             </p>
           </div>
 
