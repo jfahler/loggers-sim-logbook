@@ -85,13 +85,28 @@ export function Upload() {
     if (!file) return;
 
     try {
-      const fileBuffer = await file.arrayBuffer();
-      const base64Data = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+      const reader = new FileReader();
       
-      uploadMutation.mutate({
-        filename: file.name,
-        fileData: base64Data,
-      });
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
+        const base64Data = result.split(',')[1];
+        
+        uploadMutation.mutate({
+          filename: file.name,
+          fileData: base64Data,
+        });
+      };
+      
+      reader.onerror = () => {
+        toast({
+          title: "File Error",
+          description: "Failed to read the selected file",
+          variant: "destructive",
+        });
+      };
+      
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error reading file:', error);
       toast({
