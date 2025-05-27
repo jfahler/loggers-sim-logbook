@@ -20,33 +20,47 @@ export const listFlights = api<ListFlightsRequest, ListFlightsResponse>(
   async (req) => {
     const limit = req.limit || 50;
     const offset = req.offset || 0;
-    
-    let whereClause = "";
-    let params: any[] = [];
-    
+
+    let flights;
+    let total;
+
     if (req.pilotId) {
-      whereClause = "WHERE f.pilot_id = $1";
-      params.push(req.pilotId);
+      flights = await logbookDB.queryAll<any>`
+        SELECT 
+          f.id, f.pilot_id, f.aircraft_type, f.mission_name,
+          f.start_time, f.end_time, f.duration_seconds,
+          f.max_altitude_feet, f.max_speed_knots, f.distance_nm,
+          f.kills, f.deaths, f.tacview_filename, f.created_at,
+          p.name as pilot_name, p.callsign as pilot_callsign
+        FROM flights f
+        JOIN pilots p ON f.pilot_id = p.id
+        WHERE f.pilot_id = ${req.pilotId}
+        ORDER BY f.start_time DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+      total = await logbookDB.queryRow<{ count: number }>`
+        SELECT COUNT(*) as count FROM flights f
+        WHERE f.pilot_id = ${req.pilotId}
+      `;
+    } else {
+      flights = await logbookDB.queryAll<any>`
+        SELECT 
+          f.id, f.pilot_id, f.aircraft_type, f.mission_name,
+          f.start_time, f.end_time, f.duration_seconds,
+          f.max_altitude_feet, f.max_speed_knots, f.distance_nm,
+          f.kills, f.deaths, f.tacview_filename, f.created_at,
+          p.name as pilot_name, p.callsign as pilot_callsign
+        FROM flights f
+        JOIN pilots p ON f.pilot_id = p.id
+        ORDER BY f.start_time DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+
+      total = await logbookDB.queryRow<{ count: number }>`
+        SELECT COUNT(*) as count FROM flights f
+      `;
     }
-
-    const flights = await logbookDB.queryAll<any>`
-      SELECT 
-        f.id, f.pilot_id, f.aircraft_type, f.mission_name,
-        f.start_time, f.end_time, f.duration_seconds,
-        f.max_altitude_feet, f.max_speed_knots, f.distance_nm,
-        f.kills, f.deaths, f.tacview_filename, f.created_at,
-        p.name as pilot_name, p.callsign as pilot_callsign
-      FROM flights f
-      JOIN pilots p ON f.pilot_id = p.id
-      ${whereClause ? `WHERE f.pilot_id = ${req.pilotId}` : ''}
-      ORDER BY f.start_time DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-
-    const total = await logbookDB.queryRow<{ count: number }>`
-      SELECT COUNT(*) as count FROM flights f
-      ${whereClause ? `WHERE f.pilot_id = ${req.pilotId}` : ''}
-    `;
 
     const flightSummaries: FlightSummary[] = [];
 
