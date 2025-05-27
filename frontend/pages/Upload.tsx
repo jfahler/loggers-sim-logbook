@@ -175,6 +175,18 @@ export function Upload() {
     }
   };
 
+  // Helper function to validate base64 data without using Buffer
+  const isValidBase64 = (str: string): boolean => {
+    try {
+      // Check if the string is valid base64
+      const decoded = atob(str);
+      const encoded = btoa(decoded);
+      return encoded === str;
+    } catch (error) {
+      return false;
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) {
       toast({
@@ -214,14 +226,13 @@ export function Upload() {
             throw new Error('Invalid filename');
           }
           
-          // Test if the base64 data is valid
-          try {
-            const testBuffer = Buffer.from(base64Data, 'base64');
-            console.log('Base64 validation successful, buffer size:', testBuffer.length);
-          } catch (base64Error) {
-            console.error('Base64 validation failed:', base64Error);
+          // Test if the base64 data is valid using browser-compatible method
+          if (!isValidBase64(base64Data)) {
+            console.error('Base64 validation failed');
             throw new Error('Invalid file encoding');
           }
+          
+          console.log('Base64 validation successful');
           
           console.log('Calling upload mutation...');
           uploadMutation.mutate({
