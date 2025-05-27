@@ -6,16 +6,16 @@ const discordWebhookUrl = secret("DiscordWebhookUrl");
 export interface SendFlightSummaryRequest {
   flightId: number;
   pilotName: string;
-  pilotCallsign?: string;
+  pilotCallsign?: string | null;
   aircraftType: string;
-  missionName?: string;
+  missionName?: string | null;
   startTime: Date;
-  durationSeconds?: number;
+  durationSeconds?: number | null;
   kills: number;
   deaths: number;
-  maxAltitudeFeet?: number;
-  maxSpeedKnots?: number;
-  distanceNm?: number;
+  maxAltitudeFeet?: number | null;
+  maxSpeedKnots?: number | null;
+  distanceNm?: number | null;
 }
 
 export interface SendFlightSummaryResponse {

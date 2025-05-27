@@ -5,7 +5,7 @@ const discordWebhookUrl = secret("DiscordWebhookUrl");
 
 export interface SendPilotStatsRequest {
   pilotName: string;
-  pilotCallsign?: string;
+  pilotCallsign?: string | null;
   totalFlights: number;
   totalFlightTime: number;
   totalKills: number;

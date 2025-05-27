@@ -25,16 +25,16 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
       return backend.discord.sendFlightSummary({
         flightId: flight.id,
         pilotName: flight.pilotName,
-        pilotCallsign: flight.pilotCallsign,
+        pilotCallsign: flight.pilotCallsign || null,
         aircraftType: flight.aircraftType,
-        missionName: flight.missionName,
+        missionName: flight.missionName || null,
         startTime: flight.startTime,
-        durationSeconds: flight.durationSeconds,
+        durationSeconds: flight.durationSeconds || null,
         kills: flight.kills,
         deaths: flight.deaths,
-        maxAltitudeFeet: flight.maxAltitudeFeet,
-        maxSpeedKnots: flight.maxSpeedKnots,
-        distanceNm: flight.distanceNm,
+        maxAltitudeFeet: flight.maxAltitudeFeet || null,
+        maxSpeedKnots: flight.maxSpeedKnots || null,
+        distanceNm: flight.distanceNm || null,
       });
     },
     onSuccess: (data) => {

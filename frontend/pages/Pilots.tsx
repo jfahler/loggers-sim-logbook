@@ -17,7 +17,7 @@ export function Pilots() {
   const sendStatsMutation = useMutation({
     mutationFn: (pilot: any) => backend.discord.sendPilotStats({
       pilotName: pilot.pilot.name,
-      pilotCallsign: pilot.pilot.callsign,
+      pilotCallsign: pilot.pilot.callsign || null,
       totalFlights: pilot.totalFlights,
       totalFlightTime: pilot.totalFlightTime,
       totalKills: pilot.totalKills,
