@@ -35,20 +35,8 @@ export function Upload() {
           stack: error?.stack
         });
         
-        // Handle different types of errors
-        if (error?.message?.includes('Failed to fetch')) {
-          throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
-        }
-        
-        if (error?.body?.message) {
-          throw new Error(error.body.message);
-        }
-        
-        if (error?.message) {
-          throw new Error(error.message);
-        }
-        
-        throw new Error('An unexpected error occurred while uploading the file');
+        // Re-throw the original error to be handled by onError
+        throw error;
       }
     },
     onSuccess: async (data) => {
@@ -111,10 +99,10 @@ export function Upload() {
       
       let errorMessage = "Failed to upload and process the Tacview file";
       
-      // Try to extract more specific error information
+      // Handle different types of errors
       if (error?.message) {
-        if (error.message.includes('Network error')) {
-          errorMessage = error.message;
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('fetch')) {
+          errorMessage = "Network error: Unable to connect to the server. Please check your internet connection and try again.";
         } else if (error.message.includes('filename and fileData are required')) {
           errorMessage = "Invalid file data. Please try selecting the file again.";
         } else if (error.message.includes('invalid base64 file data')) {
@@ -129,6 +117,23 @@ export function Upload() {
           errorMessage = "Unable to parse aircraft information from the file. Please ensure it's a valid Tacview file.";
         } else {
           errorMessage = error.message;
+        }
+      } else if (error?.body?.message) {
+        errorMessage = error.body.message;
+      } else if (error?.code) {
+        // Handle API error codes
+        switch (error.code) {
+          case 'invalid_argument':
+            errorMessage = error.message || "Invalid file or request data";
+            break;
+          case 'internal':
+            errorMessage = "Server error occurred while processing the file";
+            break;
+          case 'not_found':
+            errorMessage = "Upload endpoint not found";
+            break;
+          default:
+            errorMessage = error.message || "An unexpected error occurred";
         }
       }
       
