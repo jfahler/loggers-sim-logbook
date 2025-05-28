@@ -181,35 +181,6 @@ export function Upload() {
     }
   };
 
-  // Helper function to validate base64 data without using Buffer
-  const isValidBase64 = (str: string): boolean => {
-    try {
-      // Basic check for base64 format
-      if (!str || str.length === 0) {
-        return false;
-      }
-      
-      // Check if string contains only valid base64 characters
-      const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/;
-      if (!base64Regex.test(str)) {
-        return false;
-      }
-      
-      // Check if length is valid (must be multiple of 4)
-      if (str.length % 4 !== 0) {
-        return false;
-      }
-      
-      // Try to decode and re-encode to verify validity
-      const decoded = atob(str);
-      const encoded = btoa(decoded);
-      return encoded === str;
-    } catch (error) {
-      console.warn('Base64 validation error:', error);
-      return false;
-    }
-  };
-
   const handleUpload = async () => {
     if (!file) {
       toast({
@@ -247,15 +218,6 @@ export function Upload() {
           // Validate the filename
           if (!file.name || file.name.trim().length === 0) {
             throw new Error('Invalid filename');
-          }
-          
-          // Test if the base64 data is valid using browser-compatible method
-          if (!isValidBase64(base64Data)) {
-            console.error('Base64 validation failed for data:', base64Data.substring(0, 100) + '...');
-            // Don't throw an error here - let the backend handle validation
-            console.warn('Base64 validation failed, but proceeding with upload');
-          } else {
-            console.log('Base64 validation successful');
           }
           
           console.log('Calling upload mutation...');
@@ -391,29 +353,6 @@ export function Upload() {
           </div>
         </CardContent>
       </Card>
-
-      {process.env.NODE_ENV === 'development' && (
-        <Card className="max-w-2xl border-yellow-200 bg-yellow-50">
-          <CardHeader>
-            <CardTitle className="text-yellow-800">Debug Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <p><strong>Upload Status:</strong> {uploadMutation.isPending ? 'In Progress' : 'Ready'}</p>
-              <p><strong>File Selected:</strong> {file ? `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)` : 'None'}</p>
-              <p><strong>Send to Discord:</strong> {sendToDiscord ? 'Yes' : 'No'}</p>
-              {uploadMutation.error && (
-                <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded">
-                  <p className="text-red-800"><strong>Last Error:</strong></p>
-                  <pre className="text-xs text-red-700 whitespace-pre-wrap">
-                    {JSON.stringify(uploadMutation.error, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
