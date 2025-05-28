@@ -21,7 +21,7 @@ export const listPilots = api<void, ListPilotsResponse>(
         COALESCE(SUM(f.rtb_count), 0) as total_rtb_count,
         COALESCE(SUM(f.ejections), 0) as total_ejections,
         COALESCE(SUM(f.deaths), 0) as total_deaths,
-        COALESCE(AVG(f.duration_seconds), 0) as average_flight_duration
+        COALESCE(AVG(f.duration_seconds)::INTEGER, 0) as average_flight_duration
       FROM pilots p
       LEFT JOIN flights f ON p.id = f.pilot_id
       GROUP BY p.id, p.name, p.callsign, p.created_at
