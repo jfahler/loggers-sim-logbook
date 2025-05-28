@@ -16,7 +16,7 @@ export interface UploadTacviewResponse {
 
 // Uploads a Tacview file and processes it to extract flight data.
 export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
-  { expose: true, method: "POST", path: "/logbook/tacview/upload" },
+  { expose: true, method: "POST", path: "/tacview/upload" },
   async (req) => {
     console.log('Upload API called with:', {
       filename: req.filename,
