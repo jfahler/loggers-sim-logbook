@@ -4,8 +4,6 @@
 **Loggers** is a self-hosted, open-source flight logbook system for DCS World and Tacview users.  
 Upload your `.acmi` files, track detailed flight stats, and optionally push automated summaries to Discord.
 
-> _Flight logs. No lies._
-
 ---
 
 ## 🧩 What It Does
