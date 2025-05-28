@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plane, Users, Target, Skull } from 'lucide-react';
+import { Plane, Users, Target, Skull, AlertTriangle } from 'lucide-react';
 import backend from '~backend/client';
 
 export function Dashboard() {
@@ -16,7 +16,7 @@ export function Dashboard() {
 
   const totalFlights = flights?.total || 0;
   const totalPilots = pilots?.pilots.length || 0;
-  const totalKills = pilots?.pilots.reduce((sum, pilot) => sum + pilot.totalKills, 0) || 0;
+  const totalKills = pilots?.pilots.reduce((sum, pilot) => sum + pilot.totalAaKills + pilot.totalAgKills, 0) || 0;
   const totalDeaths = pilots?.pilots.reduce((sum, pilot) => sum + pilot.totalDeaths, 0) || 0;
 
   const stats = [
@@ -89,7 +89,15 @@ export function Dashboard() {
                   </div>
                   <div className="text-right">
                     <p className="font-medium">{pilot.totalFlights} flights</p>
-                    <p className="text-sm text-gray-600">{pilot.totalKills} kills</p>
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <span>{pilot.totalAaKills + pilot.totalAgKills} kills</span>
+                      {pilot.totalFratKills > 0 && (
+                        <span className="text-orange-600 flex items-center">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {pilot.totalFratKills} FF
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -115,9 +123,10 @@ export function Dashboard() {
                     <p className="font-medium">
                       {flight.durationSeconds ? Math.round(flight.durationSeconds / 60) : 0}m
                     </p>
-                    <p className="text-sm text-gray-600">
-                      {new Date(flight.startTime).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <span>{flight.aaKills + flight.agKills} kills</span>
+                      <span>{new Date(flight.startTime).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
               ))}

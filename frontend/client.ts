@@ -140,7 +140,7 @@ export namespace logbook {
         }
 
         /**
-         * Retrieves a specific flight with all details and events.
+         * Retrieves a specific flight with all details.
          */
         public async getFlight(params: { id: number }): Promise<ResponseType<typeof api_logbook_get_flight_getFlight>> {
             // Now make the actual call to the API
@@ -149,7 +149,7 @@ export namespace logbook {
         }
 
         /**
-         * Retrieves all flights with pilot information and events.
+         * Retrieves all flights with pilot information.
          */
         public async listFlights(params: RequestType<typeof api_logbook_list_flights_listFlights>): Promise<ResponseType<typeof api_logbook_list_flights_listFlights>> {
             // Convert our params into the objects we need for the request

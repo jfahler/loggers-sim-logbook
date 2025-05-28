@@ -66,11 +66,12 @@ export function Upload() {
             missionName: flight.missionName || null,
             startTime: flight.startTime,
             durationSeconds: flight.durationSeconds || null,
-            kills: flight.kills,
+            aaKills: flight.aaKills,
+            agKills: flight.agKills,
+            fratKills: flight.fratKills,
+            rtbCount: flight.rtbCount,
+            ejections: flight.ejections,
             deaths: flight.deaths,
-            maxAltitudeFeet: flight.maxAltitudeFeet || null,
-            maxSpeedKnots: flight.maxSpeedKnots || null,
-            distanceNm: flight.distanceNm || null,
           });
           
           toast({
@@ -363,26 +364,30 @@ export function Upload() {
 
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle>How it works</CardTitle>
+          <CardTitle>Simplified Processing</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <h4 className="font-medium">1. Export from DCS</h4>
-            <p className="text-sm text-gray-600">
-              Enable Tacview in DCS and fly your mission. Tacview files are automatically saved to your DCS folder.
-            </p>
+            <h4 className="font-medium">What we track:</h4>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Number of flights per pilot</li>
+              <li>• Air-to-Air kills</li>
+              <li>• Air-to-Ground kills</li>
+              <li>• Friendly fire incidents</li>
+              <li>• Return to base (RTB) events</li>
+              <li>• Ejections</li>
+              <li>• Deaths/KIA</li>
+              <li>• Flight duration and basic info</li>
+            </ul>
           </div>
           <div className="space-y-2">
-            <h4 className="font-medium">2. Upload File</h4>
-            <p className="text-sm text-gray-600">
-              Select and upload your .acmi file. The system will automatically parse flight data including pilot info, aircraft type, kills, deaths, and flight statistics.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <h4 className="font-medium">3. View Statistics</h4>
-            <p className="text-sm text-gray-600">
-              Browse your flight history, pilot statistics, and optionally share summaries with your Discord group.
-            </p>
+            <h4 className="font-medium">Benefits:</h4>
+            <ul className="text-sm text-gray-600 space-y-1">
+              <li>• Faster processing of large files</li>
+              <li>• Reduced storage requirements</li>
+              <li>• Focus on key combat statistics</li>
+              <li>• Simplified Discord notifications</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

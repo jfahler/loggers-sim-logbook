@@ -15,7 +15,11 @@ export const listPilots = api<void, ListPilotsResponse>(
         p.id, p.name, p.callsign, p.created_at,
         COUNT(f.id) as total_flights,
         COALESCE(SUM(f.duration_seconds), 0) as total_flight_time,
-        COALESCE(SUM(f.kills), 0) as total_kills,
+        COALESCE(SUM(f.aa_kills), 0) as total_aa_kills,
+        COALESCE(SUM(f.ag_kills), 0) as total_ag_kills,
+        COALESCE(SUM(f.frat_kills), 0) as total_frat_kills,
+        COALESCE(SUM(f.rtb_count), 0) as total_rtb_count,
+        COALESCE(SUM(f.ejections), 0) as total_ejections,
         COALESCE(SUM(f.deaths), 0) as total_deaths,
         COALESCE(AVG(f.duration_seconds), 0) as average_flight_duration
       FROM pilots p
@@ -46,7 +50,11 @@ export const listPilots = api<void, ListPilotsResponse>(
         },
         totalFlights: pilot.total_flights,
         totalFlightTime: pilot.total_flight_time,
-        totalKills: pilot.total_kills,
+        totalAaKills: pilot.total_aa_kills,
+        totalAgKills: pilot.total_ag_kills,
+        totalFratKills: pilot.total_frat_kills,
+        totalRtbCount: pilot.total_rtb_count,
+        totalEjections: pilot.total_ejections,
         totalDeaths: pilot.total_deaths,
         favoriteAircraft: favoriteAircraft?.aircraft_type || 'None',
         averageFlightDuration: pilot.average_flight_duration

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FlightDetails } from '../components/FlightDetails';
-import { Plane, Clock, Target, Skull, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plane, Clock, Target, Skull, ChevronLeft, ChevronRight, AlertTriangle, Users } from 'lucide-react';
 import backend from '~backend/client';
 
 export function Flights() {
@@ -76,29 +76,40 @@ export function Flights() {
                         </span>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <Target className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm">{flight.aaKills} A-A</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
                         <Target className="h-4 w-4 text-green-600" />
-                        <span className="text-sm">{flight.kills}</span>
+                        <span className="text-sm">{flight.agKills} A-G</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Skull className="h-4 w-4 text-red-600" />
                         <span className="text-sm">{flight.deaths}</span>
                       </div>
-                      {flight.maxAltitudeFeet && (
-                        <div className="flex items-center space-x-2">
-                          <Plane className="h-4 w-4 text-blue-600" />
-                          <span className="text-sm">{flight.maxAltitudeFeet.toLocaleString()} ft</span>
-                        </div>
-                      )}
+                      <div className="flex items-center space-x-2">
+                        <Plane className="h-4 w-4 text-purple-600" />
+                        <span className="text-sm">{flight.rtbCount} RTB</span>
+                      </div>
                     </div>
                     <div className="flex space-x-2">
-                      {flight.events.map((event, index) => (
-                        <Badge
-                          key={index}
-                          variant={event.eventType === 'KILL' ? 'default' : 'destructive'}
-                        >
-                          {event.eventType}
+                      {flight.fratKills > 0 && (
+                        <Badge variant="destructive">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {flight.fratKills} FF
                         </Badge>
-                      ))}
+                      )}
+                      {flight.ejections > 0 && (
+                        <Badge variant="secondary">
+                          <Users className="h-3 w-3 mr-1" />
+                          {flight.ejections} Eject
+                        </Badge>
+                      )}
+                      {flight.deaths > 0 && (
+                        <Badge variant="destructive">
+                          KIA
+                        </Badge>
+                      )}
                     </div>
                   </div>
                   {flight.missionName && (

@@ -14,7 +14,7 @@ export interface ListFlightsResponse {
   total: number;
 }
 
-// Retrieves all flights with pilot information and events.
+// Retrieves all flights with pilot information.
 export const listFlights = api<ListFlightsRequest, ListFlightsResponse>(
   { expose: true, method: "GET", path: "/flights" },
   async (req) => {
@@ -29,8 +29,8 @@ export const listFlights = api<ListFlightsRequest, ListFlightsResponse>(
         SELECT 
           f.id, f.pilot_id, f.aircraft_type, f.mission_name,
           f.start_time, f.end_time, f.duration_seconds,
-          f.max_altitude_feet, f.max_speed_knots, f.distance_nm,
-          f.kills, f.deaths, f.tacview_filename, f.created_at,
+          f.aa_kills, f.ag_kills, f.frat_kills, f.rtb_count,
+          f.ejections, f.deaths, f.tacview_filename, f.created_at,
           p.name as pilot_name, p.callsign as pilot_callsign
         FROM flights f
         JOIN pilots p ON f.pilot_id = p.id
@@ -48,8 +48,8 @@ export const listFlights = api<ListFlightsRequest, ListFlightsResponse>(
         SELECT 
           f.id, f.pilot_id, f.aircraft_type, f.mission_name,
           f.start_time, f.end_time, f.duration_seconds,
-          f.max_altitude_feet, f.max_speed_knots, f.distance_nm,
-          f.kills, f.deaths, f.tacview_filename, f.created_at,
+          f.aa_kills, f.ag_kills, f.frat_kills, f.rtb_count,
+          f.ejections, f.deaths, f.tacview_filename, f.created_at,
           p.name as pilot_name, p.callsign as pilot_callsign
         FROM flights f
         JOIN pilots p ON f.pilot_id = p.id
@@ -62,45 +62,25 @@ export const listFlights = api<ListFlightsRequest, ListFlightsResponse>(
       `;
     }
 
-    const flightSummaries: FlightSummary[] = [];
-
-    for (const flight of flights) {
-      const events = await logbookDB.queryAll<any>`
-        SELECT id, flight_id, event_type, event_time, description, target_name, weapon_used, created_at
-        FROM flight_events
-        WHERE flight_id = ${flight.id}
-        ORDER BY event_time ASC
-      `;
-
-      flightSummaries.push({
-        id: flight.id,
-        pilotId: flight.pilot_id,
-        aircraftType: flight.aircraft_type,
-        missionName: flight.mission_name,
-        startTime: flight.start_time,
-        endTime: flight.end_time,
-        durationSeconds: flight.duration_seconds,
-        maxAltitudeFeet: flight.max_altitude_feet,
-        maxSpeedKnots: flight.max_speed_knots,
-        distanceNm: flight.distance_nm,
-        kills: flight.kills,
-        deaths: flight.deaths,
-        tacviewFilename: flight.tacview_filename,
-        createdAt: flight.created_at,
-        pilotName: flight.pilot_name,
-        pilotCallsign: flight.pilot_callsign,
-        events: events.map(e => ({
-          id: e.id,
-          flightId: e.flight_id,
-          eventType: e.event_type,
-          eventTime: e.event_time,
-          description: e.description,
-          targetName: e.target_name,
-          weaponUsed: e.weapon_used,
-          createdAt: e.created_at
-        }))
-      });
-    }
+    const flightSummaries: FlightSummary[] = flights.map(flight => ({
+      id: flight.id,
+      pilotId: flight.pilot_id,
+      aircraftType: flight.aircraft_type,
+      missionName: flight.mission_name,
+      startTime: flight.start_time,
+      endTime: flight.end_time,
+      durationSeconds: flight.duration_seconds,
+      aaKills: flight.aa_kills,
+      agKills: flight.ag_kills,
+      fratKills: flight.frat_kills,
+      rtbCount: flight.rtb_count,
+      ejections: flight.ejections,
+      deaths: flight.deaths,
+      tacviewFilename: flight.tacview_filename,
+      createdAt: flight.created_at,
+      pilotName: flight.pilot_name,
+      pilotCallsign: flight.pilot_callsign
+    }));
 
     return {
       flights: flightSummaries,

@@ -73,18 +73,6 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
         throw APIError.invalidArgument("invalid base64 file data");
       }
 
-      // Store the file in object storage
-      try {
-        console.log('Uploading to object storage...');
-        await tacviewBucket.upload(req.filename, fileBuffer, {
-          contentType: 'application/octet-stream'
-        });
-        console.log('File uploaded to object storage successfully');
-      } catch (error) {
-        console.error('Object storage error:', error);
-        throw APIError.internal(`failed to store file: ${error}`);
-      }
-
       // Parse the Tacview file content
       let fileContent: string;
       try {
@@ -101,9 +89,12 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
       console.log('Parsed flight data:', {
         pilotName: flightData.pilotName,
         aircraftType: flightData.aircraftType,
-        kills: flightData.kills,
-        deaths: flightData.deaths,
-        eventsCount: flightData.events.length
+        aaKills: flightData.aaKills,
+        agKills: flightData.agKills,
+        fratKills: flightData.fratKills,
+        rtbCount: flightData.rtbCount,
+        ejections: flightData.ejections,
+        deaths: flightData.deaths
       });
 
       // Validate parsed flight data
@@ -139,18 +130,18 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
 
       console.log('Pilot ID:', pilot.id);
 
-      // Create flight record
+      // Create flight record with simplified stats
       console.log('Creating flight record...');
       const flight = await logbookDB.queryRow<{ id: number }>`
         INSERT INTO flights (
           pilot_id, aircraft_type, mission_name, start_time, end_time,
-          duration_seconds, max_altitude_feet, max_speed_knots, distance_nm,
-          kills, deaths, tacview_filename
+          duration_seconds, aa_kills, ag_kills, frat_kills, rtb_count,
+          ejections, deaths, tacview_filename
         ) VALUES (
           ${pilot.id}, ${flightData.aircraftType}, ${flightData.missionName || null},
           ${flightData.startTime}, ${flightData.endTime || null}, ${flightData.durationSeconds || null},
-          ${flightData.maxAltitudeFeet || null}, ${flightData.maxSpeedKnots || null}, ${flightData.distanceNm || null},
-          ${flightData.kills}, ${flightData.deaths}, ${req.filename}
+          ${flightData.aaKills}, ${flightData.agKills}, ${flightData.fratKills}, ${flightData.rtbCount},
+          ${flightData.ejections}, ${flightData.deaths}, ${req.filename}
         )
         RETURNING id
       `;
@@ -161,24 +152,6 @@ export const uploadTacview = api<UploadTacviewRequest, UploadTacviewResponse>(
       }
 
       console.log('Flight ID:', flight.id);
-
-      // Create flight events
-      console.log('Creating flight events...');
-      for (const event of flightData.events) {
-        try {
-          await logbookDB.exec`
-            INSERT INTO flight_events (
-              flight_id, event_type, event_time, description, target_name, weapon_used
-            ) VALUES (
-              ${flight.id}, ${event.eventType}, ${event.eventTime}, 
-              ${event.description || null}, ${event.targetName || null}, ${event.weaponUsed || null}
-            )
-          `;
-        } catch (error) {
-          console.error('Error inserting flight event:', error);
-          // Continue processing other events
-        }
-      }
 
       const response = {
         flightId: flight.id,
@@ -206,22 +179,16 @@ interface ParsedFlightData {
   startTime: Date;
   endTime?: Date;
   durationSeconds?: number;
-  maxAltitudeFeet?: number;
-  maxSpeedKnots?: number;
-  distanceNm?: number;
-  kills: number;
-  deaths: number;
-  events: Array<{
-    eventType: string;
-    eventTime: Date;
-    description?: string;
-    targetName?: string;
-    weaponUsed?: string;
-  }>;
+  aaKills: number; // Air-to-Air kills
+  agKills: number; // Air-to-Ground kills
+  fratKills: number; // Friendly kills
+  rtbCount: number; // Return to base count
+  ejections: number; // Number of ejections
+  deaths: number; // Deaths/KIA
 }
 
 function parseTacviewFile(content: string, filename: string): ParsedFlightData {
-  console.log('Starting Tacview file parsing...');
+  console.log('Starting simplified Tacview file parsing...');
   const lines = content.split('\n');
   console.log('Total lines to parse:', lines.length);
   
@@ -231,17 +198,18 @@ function parseTacviewFile(content: string, filename: string): ParsedFlightData {
     aircraftType: 'Unknown Aircraft',
     missionName: filename.replace('.acmi', '').replace('.txt', ''),
     startTime: new Date(),
-    kills: 0,
-    deaths: 0,
-    events: []
+    aaKills: 0,
+    agKills: 0,
+    fratKills: 0,
+    rtbCount: 0,
+    ejections: 0,
+    deaths: 0
   };
 
   let currentTime = 0;
   let pilotObjectId: string | null = null;
-  let maxAltitude = 0;
-  let maxSpeed = 0;
-  let totalDistance = 0;
-  let lastPosition: { lat: number; lon: number } | null = null;
+  let startTime: number | null = null;
+  let endTime: number | null = null;
 
   try {
     for (let i = 0; i < lines.length; i++) {
@@ -269,45 +237,20 @@ function parseTacviewFile(content: string, filename: string): ParsedFlightData {
         const parsedTime = parseFloat(timeValue);
         if (!isNaN(parsedTime)) {
           currentTime = parsedTime;
+          if (startTime === null) {
+            startTime = parsedTime;
+          }
+          endTime = parsedTime;
         }
         continue;
       }
 
-      // Parse object data
-      if (trimmedLine.includes(',T=')) {
+      // Parse object data to identify pilot and aircraft
+      if (trimmedLine.includes(',') && !trimmedLine.startsWith('#')) {
         const parts = trimmedLine.split(',');
         const objectId = parts[0];
         
         for (const part of parts) {
-          if (part.startsWith('T=')) {
-            const coords = part.substring(2).split('|');
-            if (coords.length >= 3) {
-              const lon = parseFloat(coords[0]);
-              const lat = parseFloat(coords[1]);
-              const altMeters = parseFloat(coords[2]);
-              
-              if (!isNaN(lon) && !isNaN(lat) && !isNaN(altMeters)) {
-                const alt = altMeters * 3.28084; // Convert meters to feet
-                
-                if (alt > maxAltitude) {
-                  maxAltitude = alt;
-                }
-
-                // Calculate distance if we have a previous position
-                if (lastPosition && objectId === pilotObjectId) {
-                  const distance = calculateDistance(lastPosition.lat, lastPosition.lon, lat, lon);
-                  if (!isNaN(distance)) {
-                    totalDistance += distance;
-                  }
-                }
-                
-                if (objectId === pilotObjectId) {
-                  lastPosition = { lat, lon };
-                }
-              }
-            }
-          }
-          
           if (part.startsWith('Name=')) {
             const name = part.substring(5);
             if (name.includes('|')) {
@@ -333,26 +276,42 @@ function parseTacviewFile(content: string, filename: string): ParsedFlightData {
         }
       }
 
-      // Parse events (kills, deaths, etc.)
+      // Parse events for simplified statistics
       if (trimmedLine.includes('Event=')) {
-        const eventTime = new Date(flightData.startTime.getTime() + currentTime * 1000);
+        const eventLine = trimmedLine.toLowerCase();
         
-        if (trimmedLine.includes('Destroyed')) {
-          flightData.events.push({
-            eventType: 'KILL',
-            eventTime,
-            description: 'Target destroyed'
-          });
-          flightData.kills++;
-          console.log('Found kill event at time:', currentTime);
+        // Air-to-Air kills (aircraft destroyed)
+        if (eventLine.includes('destroyed') && (eventLine.includes('aircraft') || eventLine.includes('plane') || eventLine.includes('fighter') || eventLine.includes('bomber'))) {
+          flightData.aaKills++;
+          console.log('Found A-A kill event at time:', currentTime);
         }
         
-        if (trimmedLine.includes('Pilot killed') || trimmedLine.includes('Crashed')) {
-          flightData.events.push({
-            eventType: 'DEATH',
-            eventTime,
-            description: 'Pilot killed or crashed'
-          });
+        // Air-to-Ground kills (ground targets destroyed)
+        else if (eventLine.includes('destroyed') && (eventLine.includes('tank') || eventLine.includes('vehicle') || eventLine.includes('ground') || eventLine.includes('sam') || eventLine.includes('aaa'))) {
+          flightData.agKills++;
+          console.log('Found A-G kill event at time:', currentTime);
+        }
+        
+        // Friendly kills
+        else if (eventLine.includes('friendly') && eventLine.includes('destroyed')) {
+          flightData.fratKills++;
+          console.log('Found friendly kill event at time:', currentTime);
+        }
+        
+        // Return to base
+        else if (eventLine.includes('rtb') || eventLine.includes('return') || eventLine.includes('landed')) {
+          flightData.rtbCount++;
+          console.log('Found RTB event at time:', currentTime);
+        }
+        
+        // Ejections
+        else if (eventLine.includes('eject') || eventLine.includes('bailout')) {
+          flightData.ejections++;
+          console.log('Found ejection event at time:', currentTime);
+        }
+        
+        // Deaths/KIA
+        else if (eventLine.includes('pilot killed') || eventLine.includes('crashed') || eventLine.includes('kia')) {
           flightData.deaths++;
           console.log('Found death event at time:', currentTime);
         }
@@ -363,40 +322,23 @@ function parseTacviewFile(content: string, filename: string): ParsedFlightData {
     // Continue with default values
   }
 
-  // Set calculated values
-  flightData.maxAltitudeFeet = Math.round(maxAltitude);
-  flightData.maxSpeedKnots = Math.round(maxSpeed);
-  flightData.distanceNm = totalDistance;
-  
-  if (currentTime > 0) {
-    flightData.endTime = new Date(flightData.startTime.getTime() + currentTime * 1000);
-    flightData.durationSeconds = Math.round(currentTime);
+  // Calculate duration if we have time data
+  if (startTime !== null && endTime !== null && endTime > startTime) {
+    flightData.durationSeconds = Math.round(endTime - startTime);
+    flightData.endTime = new Date(flightData.startTime.getTime() + flightData.durationSeconds * 1000);
   }
 
   console.log('Parsing completed. Final flight data:', {
     pilotName: flightData.pilotName,
     aircraftType: flightData.aircraftType,
     duration: flightData.durationSeconds,
-    kills: flightData.kills,
-    deaths: flightData.deaths,
-    events: flightData.events.length,
-    maxAltitude: flightData.maxAltitudeFeet
+    aaKills: flightData.aaKills,
+    agKills: flightData.agKills,
+    fratKills: flightData.fratKills,
+    rtbCount: flightData.rtbCount,
+    ejections: flightData.ejections,
+    deaths: flightData.deaths
   });
 
   return flightData;
-}
-
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  try {
-    const R = 3440.065; // Earth's radius in nautical miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  } catch (error) {
-    return 0;
-  }
 }

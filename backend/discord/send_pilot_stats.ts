@@ -8,7 +8,11 @@ export interface SendPilotStatsRequest {
   pilotCallsign?: string | null;
   totalFlights: number;
   totalFlightTime: number;
-  totalKills: number;
+  totalAaKills: number;
+  totalAgKills: number;
+  totalFratKills: number;
+  totalRtbCount: number;
+  totalEjections: number;
   totalDeaths: number;
   favoriteAircraft: string;
   averageFlightDuration: number;
@@ -32,7 +36,8 @@ export const sendPilotStats = api<SendPilotStatsRequest, SendPilotStatsResponse>
       };
     }
 
-    const killDeathRatio = req.totalDeaths > 0 ? (req.totalKills / req.totalDeaths).toFixed(2) : req.totalKills.toString();
+    const totalKills = req.totalAaKills + req.totalAgKills;
+    const killDeathRatio = req.totalDeaths > 0 ? (totalKills / req.totalDeaths).toFixed(2) : totalKills.toString();
 
     const embed = {
       title: "📊 Pilot Statistics",
@@ -59,12 +64,37 @@ export const sendPilotStats = api<SendPilotStatsRequest, SendPilotStatsResponse>
           inline: true
         },
         {
-          name: "Total Kills",
-          value: req.totalKills.toString(),
+          name: "A-A Kills",
+          value: req.totalAaKills.toString(),
           inline: true
         },
         {
-          name: "Total Deaths",
+          name: "A-G Kills",
+          value: req.totalAgKills.toString(),
+          inline: true
+        },
+        {
+          name: "Total Kills",
+          value: totalKills.toString(),
+          inline: true
+        },
+        {
+          name: "Friendly Kills",
+          value: req.totalFratKills.toString(),
+          inline: true
+        },
+        {
+          name: "RTB Count",
+          value: req.totalRtbCount.toString(),
+          inline: true
+        },
+        {
+          name: "Ejections",
+          value: req.totalEjections.toString(),
+          inline: true
+        },
+        {
+          name: "Deaths",
           value: req.totalDeaths.toString(),
           inline: true
         },

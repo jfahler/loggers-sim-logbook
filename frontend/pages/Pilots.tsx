@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Users, Plane, Target, Skull, Clock, Send } from 'lucide-react';
+import { Users, Plane, Target, Skull, Clock, Send, AlertTriangle } from 'lucide-react';
 import backend from '~backend/client';
 
 export function Pilots() {
@@ -20,7 +20,11 @@ export function Pilots() {
       pilotCallsign: pilot.pilot.callsign || null,
       totalFlights: pilot.totalFlights,
       totalFlightTime: pilot.totalFlightTime,
-      totalKills: pilot.totalKills,
+      totalAaKills: pilot.totalAaKills,
+      totalAgKills: pilot.totalAgKills,
+      totalFratKills: pilot.totalFratKills,
+      totalRtbCount: pilot.totalRtbCount,
+      totalEjections: pilot.totalEjections,
       totalDeaths: pilot.totalDeaths,
       favoriteAircraft: pilot.favoriteAircraft,
       averageFlightDuration: pilot.averageFlightDuration,
@@ -60,9 +64,10 @@ export function Pilots() {
     }
   };
 
-  const getKillDeathRatio = (kills: number, deaths: number) => {
-    if (deaths === 0) return kills.toString();
-    return (kills / deaths).toFixed(2);
+  const getKillDeathRatio = (aaKills: number, agKills: number, deaths: number) => {
+    const totalKills = aaKills + agKills;
+    if (deaths === 0) return totalKills.toString();
+    return (totalKills / deaths).toFixed(2);
   };
 
   if (isLoading) {
@@ -119,8 +124,8 @@ export function Pilots() {
                 <div className="flex items-center space-x-2">
                   <Target className="h-4 w-4 text-red-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Kills</p>
-                    <p className="font-semibold">{pilot.totalKills}</p>
+                    <p className="text-sm text-gray-600">Total Kills</p>
+                    <p className="font-semibold">{pilot.totalAaKills + pilot.totalAgKills}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -132,11 +137,42 @@ export function Pilots() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">A-A Kills</p>
+                    <p className="font-semibold">{pilot.totalAaKills}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-green-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">A-G Kills</p>
+                    <p className="font-semibold">{pilot.totalAgKills}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Friendly Kills</p>
+                    <p className="font-semibold">{pilot.totalFratKills}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Plane className="h-4 w-4 text-purple-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">RTB Count</p>
+                    <p className="font-semibold">{pilot.totalRtbCount}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-sm text-gray-600">K/D Ratio</p>
                   <Badge variant="outline" className="mt-1">
-                    {getKillDeathRatio(pilot.totalKills, pilot.totalDeaths)}
+                    {getKillDeathRatio(pilot.totalAaKills, pilot.totalAgKills, pilot.totalDeaths)}
                   </Badge>
                 </div>
                 <div>
@@ -149,6 +185,12 @@ export function Pilots() {
                   <p className="text-sm text-gray-600">Avg Flight Duration</p>
                   <Badge variant="outline" className="mt-1">
                     {formatDuration(pilot.averageFlightDuration)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Ejections</p>
+                  <Badge variant={pilot.totalEjections > 0 ? "secondary" : "outline"} className="mt-1">
+                    {pilot.totalEjections}
                   </Badge>
                 </div>
               </div>

@@ -13,37 +13,30 @@ export interface Flight {
   startTime: Date;
   endTime?: Date;
   durationSeconds?: number;
-  maxAltitudeFeet?: number;
-  maxSpeedKnots?: number;
-  distanceNm?: number;
-  kills: number;
+  aaKills: number;
+  agKills: number;
+  fratKills: number;
+  rtbCount: number;
+  ejections: number;
   deaths: number;
   tacviewFilename?: string;
-  createdAt: Date;
-}
-
-export interface FlightEvent {
-  id: number;
-  flightId: number;
-  eventType: string;
-  eventTime: Date;
-  description?: string;
-  targetName?: string;
-  weaponUsed?: string;
   createdAt: Date;
 }
 
 export interface FlightSummary extends Flight {
   pilotName: string;
   pilotCallsign?: string;
-  events: FlightEvent[];
 }
 
 export interface PilotStats {
   pilot: Pilot;
   totalFlights: number;
   totalFlightTime: number;
-  totalKills: number;
+  totalAaKills: number;
+  totalAgKills: number;
+  totalFratKills: number;
+  totalRtbCount: number;
+  totalEjections: number;
   totalDeaths: number;
   favoriteAircraft: string;
   averageFlightDuration: number;

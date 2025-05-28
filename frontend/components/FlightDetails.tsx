@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Plane, Clock, Target, Skull, Send, MapPin, Gauge } from 'lucide-react';
+import { ArrowLeft, Plane, Clock, Target, Skull, Send, Users, AlertTriangle } from 'lucide-react';
 import backend from '~backend/client';
 
 interface FlightDetailsProps {
@@ -30,11 +30,12 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
         missionName: flight.missionName || null,
         startTime: flight.startTime,
         durationSeconds: flight.durationSeconds || null,
-        kills: flight.kills,
+        aaKills: flight.aaKills,
+        agKills: flight.agKills,
+        fratKills: flight.fratKills,
+        rtbCount: flight.rtbCount,
+        ejections: flight.ejections,
         deaths: flight.deaths,
-        maxAltitudeFeet: flight.maxAltitudeFeet || null,
-        maxSpeedKnots: flight.maxSpeedKnots || null,
-        distanceNm: flight.distanceNm || null,
       });
     },
     onSuccess: (data) => {
@@ -141,15 +142,43 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Flight Statistics</CardTitle>
+              <CardTitle>Combat Statistics</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Target className="h-4 w-4 text-blue-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">A-A Kills</p>
+                    <p className="font-semibold text-lg">{flight.aaKills}</p>
+                  </div>
+                </div>
                 <div className="flex items-center space-x-2">
                   <Target className="h-4 w-4 text-green-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Kills</p>
-                    <p className="font-semibold text-lg">{flight.kills}</p>
+                    <p className="text-sm text-gray-600">A-G Kills</p>
+                    <p className="font-semibold text-lg">{flight.agKills}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Friendly Kills</p>
+                    <p className="font-semibold text-lg">{flight.fratKills}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Plane className="h-4 w-4 text-purple-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">RTB Count</p>
+                    <p className="font-semibold text-lg">{flight.rtbCount}</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Users className="h-4 w-4 text-yellow-600" />
+                  <div>
+                    <p className="text-sm text-gray-600">Ejections</p>
+                    <p className="font-semibold text-lg">{flight.ejections}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -159,36 +188,7 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
                     <p className="font-semibold text-lg">{flight.deaths}</p>
                   </div>
                 </div>
-                {flight.maxAltitudeFeet && (
-                  <div className="flex items-center space-x-2">
-                    <MapPin className="h-4 w-4 text-blue-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Max Altitude</p>
-                      <p className="font-semibold text-lg">{flight.maxAltitudeFeet.toLocaleString()} ft</p>
-                    </div>
-                  </div>
-                )}
-                {flight.maxSpeedKnots && (
-                  <div className="flex items-center space-x-2">
-                    <Gauge className="h-4 w-4 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Max Speed</p>
-                      <p className="font-semibold text-lg">{flight.maxSpeedKnots} kts</p>
-                    </div>
-                  </div>
-                )}
               </div>
-              {flight.distanceNm && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex items-center space-x-2">
-                    <Plane className="h-4 w-4 text-gray-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Distance Traveled</p>
-                      <p className="font-semibold">{flight.distanceNm.toFixed(1)} nautical miles</p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -196,34 +196,38 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Flight Events</CardTitle>
+              <CardTitle>Performance Summary</CardTitle>
             </CardHeader>
-            <CardContent>
-              {flight.events.length > 0 ? (
-                <div className="space-y-3">
-                  {flight.events.map((event) => (
-                    <div key={event.id} className="flex items-center justify-between">
-                      <div>
-                        <Badge
-                          variant={event.eventType === 'KILL' ? 'default' : 'destructive'}
-                        >
-                          {event.eventType}
-                        </Badge>
-                        {event.description && (
-                          <p className="text-sm text-gray-600 mt-1">{event.description}</p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">
-                          {new Date(event.eventTime).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+            <CardContent className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total Kills</span>
+                <Badge variant="default">
+                  {flight.aaKills + flight.agKills}
+                </Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Kill/Death Ratio</span>
+                <Badge variant="outline">
+                  {flight.deaths > 0 
+                    ? ((flight.aaKills + flight.agKills) / flight.deaths).toFixed(2)
+                    : (flight.aaKills + flight.agKills).toString()
+                  }
+                </Badge>
+              </div>
+              {flight.fratKills > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">Friendly Fire</span>
+                  <Badge variant="destructive">
+                    {flight.fratKills}
+                  </Badge>
                 </div>
-              ) : (
-                <p className="text-gray-600 text-center py-4">No events recorded</p>
               )}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Mission Status</span>
+                <Badge variant={flight.deaths > 0 ? "destructive" : flight.rtbCount > 0 ? "default" : "secondary"}>
+                  {flight.deaths > 0 ? "KIA" : flight.rtbCount > 0 ? "RTB" : "Unknown"}
+                </Badge>
+              </div>
             </CardContent>
           </Card>
 

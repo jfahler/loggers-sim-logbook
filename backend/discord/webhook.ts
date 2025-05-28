@@ -11,11 +11,12 @@ export interface SendFlightSummaryRequest {
   missionName?: string | null;
   startTime: Date;
   durationSeconds?: number | null;
-  kills: number;
+  aaKills: number;
+  agKills: number;
+  fratKills: number;
+  rtbCount: number;
+  ejections: number;
   deaths: number;
-  maxAltitudeFeet?: number | null;
-  maxSpeedKnots?: number | null;
-  distanceNm?: number | null;
 }
 
 export interface SendFlightSummaryResponse {
@@ -61,8 +62,28 @@ export const sendFlightSummary = api<SendFlightSummaryRequest, SendFlightSummary
           inline: true
         },
         {
-          name: "Kills",
-          value: req.kills.toString(),
+          name: "A-A Kills",
+          value: req.aaKills.toString(),
+          inline: true
+        },
+        {
+          name: "A-G Kills",
+          value: req.agKills.toString(),
+          inline: true
+        },
+        {
+          name: "Friendly Kills",
+          value: req.fratKills.toString(),
+          inline: true
+        },
+        {
+          name: "RTB Count",
+          value: req.rtbCount.toString(),
+          inline: true
+        },
+        {
+          name: "Ejections",
+          value: req.ejections.toString(),
           inline: true
         },
         {
@@ -76,30 +97,6 @@ export const sendFlightSummary = api<SendFlightSummaryRequest, SendFlightSummary
         text: "DCS Pilot Logbook"
       }
     };
-
-    if (req.maxAltitudeFeet) {
-      embed.fields.push({
-        name: "Max Altitude",
-        value: `${req.maxAltitudeFeet.toLocaleString()} ft`,
-        inline: true
-      });
-    }
-
-    if (req.maxSpeedKnots) {
-      embed.fields.push({
-        name: "Max Speed",
-        value: `${req.maxSpeedKnots} kts`,
-        inline: true
-      });
-    }
-
-    if (req.distanceNm) {
-      embed.fields.push({
-        name: "Distance",
-        value: `${req.distanceNm.toFixed(1)} nm`,
-        inline: true
-      });
-    }
 
     const payload = {
       embeds: [embed]
