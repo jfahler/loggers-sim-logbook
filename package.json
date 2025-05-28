@@ -6,5 +6,8 @@
   "workspaces": [
     "backend",
     "frontend"
-  ]
+  ],
+  "dependencies": {
+    "3": "^2.1.0"
+  }
 }
