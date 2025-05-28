@@ -9,8 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Upload as UploadIcon, FileText, Send } from 'lucide-react';
 import backend from '~backend/client';
 
-const API_URL = "http://127.0.0.1:4000/tacview/upload";
-
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
   const [sendToDiscord, setSendToDiscord] = useState(true);
@@ -25,19 +23,7 @@ export function Upload() {
       });
 
       try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(fileData),
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
+        const result = await backend.logbook.uploadTacview(fileData);
         console.log('Upload successful:', result);
         return result;
       } catch (error: any) {
