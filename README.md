@@ -1,4 +1,5 @@
 <img src="loggers-logo.png" alt="loggers logo" width="200"/>
+
 # ✈️ Loggers: DCS Flight Logbook
 
 **Loggers** is a self-hosted, open-source flight logbook system for DCS World and Tacview users.  
