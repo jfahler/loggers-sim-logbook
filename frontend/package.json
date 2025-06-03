@@ -1,8 +1,11 @@
 {
   "name": "frontend",
   "version": "1.0.0",
-  "type": "module",
-  "packageManager": "bun",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",
@@ -20,16 +23,6 @@
     "tailwindcss": "^4.1.7"
   },
   "devDependencies": {
-    "@tailwindcss/oxide": "^4.1.7",
-    "@types/react": "^19.1.6",
-    "@types/react-dom": "^19.1.5",
-    "@vitejs/plugin-react": "^4.5.0",
-    "lightningcss": "^1.30.1",
-    "tw-animate-css": "^1.3.0",
-    "typescript": "^5.8.3",
-    "vite": "^6.3.5"
-  },
-  "optionalDependencies": {
-    "rollup": "^4.41.1"
+    "vite-tsconfig-paths": "^5.1.4"
   }
 }
