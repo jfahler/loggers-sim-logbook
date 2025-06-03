@@ -1,6 +1,5 @@
 <center><img src="loggers-logo.png" width="200px"></center>
 
-
 # ✈️ Loggers: DCS Flight Logbook
 
 _Loggers is a self-hosted, open-source flight logbook app for DCS World players and squadrons. Upload your Tacview files, extract mission stats, and optionally push automated summaries to Discord._
@@ -9,22 +8,25 @@ _Loggers is a self-hosted, open-source flight logbook app for DCS World players 
 
 ---
 
+# THIS IS AN EARLY DEV BUILD - It probably doesn't work! 
+
 ## 🧩 What It Does
 
-- 🔍 Parses `.acmi` files exported from Tacview  
-- 🧠 Extracts data such as pilot callsign, aircraft type, kills, mission duration, and more  
-- 📊 Displays detailed flight logs in a browser-based UI  
-- 📣 Supports Discord webhook integration for automated debrief summaries  
-- 💻 Built for local development and self-hosting by DCS mission creators
+- 🔍 Parses Tacview `.xml` (and optionally `.acmi`) exports  
+- 👤 Builds and updates pilot profiles from mission stats  
+- 📊 Tracks kills, survivability (RTB, KIA, etc.), flight hours, and more  
+- 🔁 CLI support for XML batch parsing and profile updates  
+- 🌐 Includes a modern web frontend for browsing flight logs  
+- 📣 Discord webhook integration (planned)
 
 ---
 
 ## ⚙️ Stack Overview
 
-- **Frontend:** React (with Vite, Tailwind, Radix UI)
-- **Backend:** TypeScript (Encore / Leap Framework)
-- **Data Parsing:** Encodes Tacview `.acmi` data for backend processing
-- **Hosting/Dev:** Docker + Local VM (Xubuntu) or Leap Cloud
+- **Frontend:** React (Vite + TailwindCSS + ShadCN + Radix UI)  
+- **Backend:** Python (XML parsing and CLI tools)  
+- **Old Backend (Legacy):** Encore / Leap (TypeScript, now deprecated)  
+- **Hosting/Dev:** Bun, Docker, Xubuntu VM, or local
 
 ---
 
@@ -32,17 +34,24 @@ _Loggers is a self-hosted, open-source flight logbook app for DCS World players 
 
 ```
 loggers-sim-logbook/
-├── backend/          # Leap/Encore backend services
-├── frontend/         # React frontend (Vite)
-├── public/           # Static assets (optional)
-├── bun.lock          # Bun package lockfile
-├── package.json      # Monorepo-level config
-└── .gitignore        # Standard node/bun ignores
+├── backend/              # New XML-only Python backend
+│   ├── update_profiles.py
+│   ├── xml_parser.py
+│   ├── nickname_matcher.py
+│   ├── nicknames.json
+│   └── pilot_profiles/   # Output profiles per pilot
+├── backendOld/           # Archived Encore/Leap backend
+├── frontend/             # React frontend
+├── logs/                 # Your Tacview XML exports go here
+├── public/               # Static assets (optional)
+├── package.json          # Monorepo config
+├── bun.lock              # Bun package lockfile
+└── README.md             # You're reading it
 ```
 
 ---
 
-## 🚀 Getting Started (Local Dev on Linux VM)
+## 🚀 Getting Started (Local Dev)
 
 ### 1. Clone the Repo
 
@@ -51,61 +60,67 @@ git clone https://github.com/jfahler/loggers-sim-logbook.git
 cd loggers-sim-logbook
 ```
 
-### 2. Install Dependencies
-
-Make sure you have **Bun**, **Docker**, and **Encore** installed.
+### 2. Python Backend (XML Parser)
 
 ```bash
-bun install
-cd frontend && bun install
-cd ../backend && bun install
+cd backend
+PYTHONPATH=. python3 update_profiles.py --xml ../logs/YourTacviewExport.xml --out pilot_profiles/
 ```
 
-### 3. Run Locally
+Output will appear in `pilot_profiles/` as `.json` files for each pilot.
 
-In the `backend/` folder:
+### 3. React Frontend (Vite + Bun)
 
 ```bash
-encore run
+cd frontend
+npm install
+npm run dev
 ```
 
-Then in a new terminal tab, from the `frontend/` folder:
-
-```bash
-bun dev
-```
-
-Visit `http://localhost:3000` in your browser.
+Visit [http://localhost:5173](http://localhost:5173)
 
 ---
 
-## 📡 Deployment
+## 🧠 Nickname Matching
 
-- **Leap Cloud:** Sync the repo to [leap.new](https://leap.new) and deploy from there.
-- **Self-Hosting:** VM + Docker setup will support this stack with minimal tweaking.
-- **CORS/Upload Limits:** Large `.acmi` files may trigger backend CORS issues or size restrictions — backend file streaming or preprocessing may be required for production.
+Update `nicknames.json` to handle pilot aliasing (e.g. matching "WILDCAT 1-1 | BULLET" to `bullet`):
+
+```json
+{
+  "bullet": ["wildcat", "bullet"],
+  "drunkbonsai": ["drunk", "bonsai"]
+}
+```
+
+---
+
+## 📡 Deployment Options
+
+- **Static Frontend:** Deploy via GitHub Pages, Vercel, or Netlify  
+- **Backend:** Run via cron, script, or manual CLI  
+- **Discord Support:** Coming soon (automated flight debriefing)
 
 ---
 
 ## 📎 TODO / Known Issues
 
-- [ ] Add streaming or chunked uploads for large `.acmi` files
-- [ ] Improve `.acmi` parsing and reduce payload size
-- [ ] Add user-friendly error messages
-- [ ] Enable mission categorization or metadata tagging
-- [ ] Optimize for server deployments with reverse proxy support
+- [ ] Add file upload from browser to backend parser  
+- [ ] Merge legacy backend with new XML engine  
+- [ ] Optimize pilot matching with user-defined rules  
+- [ ] Tag missions by type or squadron  
+- [ ] CORS handling for external API integration
 
 ---
 
 ## 🙏 Acknowledgments
 
-- [Tacview](https://www.tacview.net/) for flight data exports
-- [Leap](https://leap.new) / [Encore](https://encore.dev) for backend framework
-- [DCS World](https://www.digitalcombatsimulator.com/) for eating all our free time
+- [Tacview](https://www.tacview.net/) for the flight data  
+- [ShadCN UI](https://ui.shadcn.com/) for great React UI primitives  
+- [Encore](https://encore.dev) and [Leap](https://leap.new) for early backend work  
+- [DCS World](https://www.digitalcombatsimulator.com/) for all the bruises and glory
 
 ---
 
 ## 📜 License
 
-MIT License — free to fork, modify, and deploy.
-
+MIT License — fork, remix, deploy, and fly.
