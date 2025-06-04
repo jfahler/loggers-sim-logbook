@@ -1,7 +1,8 @@
+
 import argparse
 from pathlib import Path
-from backend.xml_parser import parse_tacview_xml
-from backend.profile_manager import load_profile, save_profile, update_profile
+from xml_parser import parse_tacview_xml
+from profile_manager import load_profile, save_profile, update_profile
 
 def update_profiles_from_xml(xml_path, profile_dir):
     pilot_missions = parse_tacview_xml(xml_path)
@@ -12,6 +13,11 @@ def update_profiles_from_xml(xml_path, profile_dir):
         profile = load_profile(nickname, profile_dir)
         update_profile(profile, mission_data, flight_minutes=45, aircraft=aircraft)
         save_profile(nickname, profile, profile_dir)
+
+def update_profiles():
+    xml_path = Path("pilot_profiles/temp_upload.xml")
+    out_dir = Path("pilot_profiles")
+    update_profiles_from_xml(xml_path, out_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update pilot profiles from Tacview XML")

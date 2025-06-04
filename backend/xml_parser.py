@@ -1,6 +1,10 @@
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from backend.nickname_matcher import resolve_fuzzy_nickname
+from nickname_matcher import resolve_fuzzy_nickname
+
+def parse_xml(filepath: str):
+    print(f"Parsing XML file at: {filepath}")
+
 
 def parse_tacview_xml(xml_path):
     tree = ET.parse(xml_path)
