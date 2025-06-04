@@ -1,51 +1,38 @@
-# Node/npm/Yarn/Bun
+# Node/npm/Yarn
 node_modules/
 package-lock.json
-bun.lock
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+yarn-*.log*
+bun.lock
 
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.egg-info/
+
+# Environment variables
 .env
-
-# Environment files
-.env*
+.env.*
 *.env
+!.env.example
 
-# OS-generated files
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Icon?
-Desktop.ini
-
-# Vite
+# Build outputs
 dist/
 frontend/dist/
-backend/frontend/dist/
-
-# Editor
-.vscode/
-*.swp
-*.swo
-
-# Logs
 logs/
 *.log
 
-# Docker
+# Editor / OS
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Docker & misc
 *.pid
 *.sock
-docker-compose.override.yml
-
-# Misc
 *.bak
 *.tmp
-
-!/.env.example
-
