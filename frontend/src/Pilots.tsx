@@ -1,44 +1,32 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Card, CardContent } from './components/ui/card';
 
-import React, { useEffect, useState } from "react";
-import { PilotCard } from "./PilotCard";
-
-interface PilotProfile {
-  callsign: string;
-  platform_hours: Record<string, string>;
-  aircraft_hours: Record<string, string>;
-  mission_summary: {
-    logs_flown: number;
-    aa_kills: number;
-    ag_kills: number;
-    frat_kills: number;
-    rtb: number;
-    kia: number;
-  };
-}
-
-export const Pilots: React.FC = () => {
-  const [profiles, setProfiles] = useState<PilotProfile[]>([]);
+export default function Pilots() {
+  const [pilotSlugs, setPilotSlugs] = useState<string[]>([]);
 
   useEffect(() => {
-    const loadProfiles = async () => {
-      const files = ["drunkbonsai.json"];
-      const loaded: PilotProfile[] = await Promise.all(
-        files.map(async (filename) => {
-          const res = await fetch(`/pilot_profiles/${filename}`);
-          return await res.json();
-        })
-      );
-      setProfiles(loaded);
-    };
-
-    loadProfiles();
+    fetch('/pilot_profiles/index.json')  // served from backend/static dir
+      .then((res) => res.json())
+      .then(setPilotSlugs)
+      .catch(() => setPilotSlugs([]));
   }, []);
 
   return (
-    <div className="p-4 flex flex-wrap gap-4 justify-center">
-      {profiles.map((profile) => (
-        <PilotCard key={profile.callsign} profile={profile} />
-      ))}
+    <div className="p-4 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4">Pilot Roster</h1>
+      <div className="grid gap-4">
+        {pilotSlugs.map((slug) => (
+          <Link key={slug} to={`/pilot/${slug}`}>
+            <Card>
+              <CardContent className="p-4">
+                <h2 className="text-lg font-semibold capitalize">{slug.replace(/_/g, ' ')}</h2>
+                <p className="text-sm text-gray-600">View profile →</p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </div>
   );
-};
+}
