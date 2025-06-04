@@ -11,10 +11,8 @@ __pycache__/
 *.pyo
 *.egg-info/
 
-# Environment variables
+# Environment files
 .env
-.env.*
-*.env
 !.env.example
 
 # Build outputs
@@ -36,3 +34,4 @@ Desktop.ini
 *.sock
 *.bak
 *.tmp
+
