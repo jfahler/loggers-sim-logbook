@@ -7,6 +7,7 @@ from generate_index import generate_index
 from xml_parser import parse_xml
 from update_profiles import update_profiles
 from webhook_helpers import send_pilot_stats, send_flight_summary
+from datetime import datetime
 
 app = Flask(__name__)
 
