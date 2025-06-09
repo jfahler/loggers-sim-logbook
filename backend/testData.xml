@@ -443,10 +443,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="15">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 6</Pilot>
+				<Pilot>61st Infantry battalion 6</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenHitBy</Action>
 			<SecondaryObject ID="153">
@@ -500,10 +500,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="15">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 6</Pilot>
+				<Pilot>61st Infantry battalion 6</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 			<SecondaryObject ID="62">
@@ -525,10 +525,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="15">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 6</Pilot>
+				<Pilot>61st Infantry battalion 6</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenHitBy</Action>
 			<Occurrences>2</Occurrences>
@@ -558,10 +558,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="10">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 1</Pilot>
+				<Pilot>61st Infantry battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 		</Event>
@@ -575,10 +575,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="17">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 8</Pilot>
+				<Pilot>61st Infantry battalion 8</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 		</Event>
@@ -592,10 +592,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="12">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 3</Pilot>
+				<Pilot>61st Infantry battalion 3</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 		</Event>
@@ -682,10 +682,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="11">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 2</Pilot>
+				<Pilot>61st Infantry battalion 2</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 			<SecondaryObject ID="62">
@@ -707,10 +707,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="11">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 2</Pilot>
+				<Pilot>61st Infantry battalion 2</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenHitBy</Action>
 			<SecondaryObject ID="163">
@@ -739,10 +739,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="16">
 				<Type>Infantry</Type>
 				<Name>Soldier RPG</Name>
-				<Pilot>61st Infantry bataillon 7</Pilot>
+				<Pilot>61st Infantry battalion 7</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>sy</Country>
-				<Group>61st Infantry bataillon</Group>
+				<Group>61st Infantry battalion</Group>
 			</PrimaryObject>
 			<Action>HasBeenDestroyed</Action>
 		</Event>
@@ -1092,10 +1092,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</PrimaryObject>
 			<Action>HasFired</Action>
 			<Occurrences>28</Occurrences>
@@ -1133,10 +1133,10 @@ Editor notes can be found in Neutral task</Comments>
 			<ParentObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</ParentObject>
 		</Event>
 		<Event>
@@ -1174,10 +1174,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</PrimaryObject>
 			<Action>HasFired</Action>
 			<Occurrences>31</Occurrences>
@@ -1843,10 +1843,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</PrimaryObject>
 			<Action>HasFired</Action>
 			<Occurrences>24</Occurrences>
@@ -1868,10 +1868,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</PrimaryObject>
 			<Action>HasFired</Action>
 			<Occurrences>17</Occurrences>
@@ -2043,10 +2043,10 @@ Editor notes can be found in Neutral task</Comments>
 			<PrimaryObject ID="8">
 				<Type>SAM/AAA</Type>
 				<Name>ZU-23-2 (Ural-375)</Name>
-				<Pilot>238th Air defense bataillon 1</Pilot>
+				<Pilot>238th Air defense battalion 1</Pilot>
 				<Coalition>Allies</Coalition>
 				<Country>xi</Country>
-				<Group>238th Air defense bataillon</Group>
+				<Group>238th Air defense battalion</Group>
 			</PrimaryObject>
 			<Action>HasFired</Action>
 			<Occurrences>22</Occurrences>
