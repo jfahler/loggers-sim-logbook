@@ -2,6 +2,7 @@
 
 import os
 from flask import Flask, send_from_directory, request, jsonify
+import json
 from werkzeug.utils import secure_filename
 from generate_index import generate_index
 from xml_parser import parse_xml
@@ -151,6 +152,124 @@ def too_large(e):
 @app.errorhandler(500)
 def internal_error(e):
     return jsonify({"error": "Internal server error occurred."}), 500
+
+@app.route('/pilot_profiles/<path:filename>')
+def serve_profile(filename):
+    return send_from_directory(PROFILE_DIR, filename)
+
+
+def parse_hhmm(value: str) -> int:
+    """Convert H:MM string to minutes."""
+    try:
+        hours, minutes = value.split(':')
+        return int(hours) * 60 + int(minutes)
+    except Exception:
+        return 0
+
+
+def load_profiles() -> list:
+    profiles = []
+    for fname in os.listdir(PROFILE_DIR):
+        if not fname.endswith('.json') or fname == 'index.json':
+            continue
+        with open(os.path.join(PROFILE_DIR, fname)) as f:
+            profiles.append(json.load(f))
+    return profiles
+
+
+def aggregate_pilots() -> list:
+    pilots = []
+    for idx, prof in enumerate(load_profiles(), start=1):
+        callsign = prof.get('callsign', '')
+        if '|' in callsign:
+            cs, name = [p.strip() for p in callsign.split('|', 1)]
+        else:
+            cs, name = None, callsign
+        summary = prof.get('mission_summary', {})
+        total_time = parse_hhmm(prof.get('platform_hours', {}).get('Total', '0:00')) * 60
+        aircraft_hours = prof.get('aircraft_hours', {})
+        fav_aircraft = None
+        most_time = -1
+        for air, val in aircraft_hours.items():
+            mins = parse_hhmm(val)
+            if mins > most_time:
+                fav_aircraft = air
+                most_time = mins
+
+        flights = summary.get('logs_flown', 0)
+        avg_duration = int(total_time / flights) if flights else 0
+
+        pilots.append({
+            'pilot': {
+                'id': idx,
+                'name': name,
+                'callsign': cs,
+                'createdAt': datetime.utcnow().isoformat(),
+            },
+            'totalFlights': flights,
+            'totalFlightTime': total_time,
+            'averageFlightDuration': avg_duration,
+            'totalAaKills': summary.get('aa_kills', 0),
+            'totalAgKills': summary.get('ag_kills', 0),
+            'totalFratKills': summary.get('frat_kills', 0),
+            'totalRtbCount': summary.get('rtb', 0),
+            'totalEjections': summary.get('ejections', 0),
+            'totalDeaths': summary.get('kia', 0),
+            'favoriteAircraft': fav_aircraft,
+        })
+    return pilots
+
+
+def collect_flights() -> list:
+    flights = []
+    idx = 1
+    for prof in load_profiles():
+        callsign = prof.get('callsign', '')
+        if '|' in callsign:
+            cs, name = [p.strip() for p in callsign.split('|', 1)]
+        else:
+            cs, name = None, callsign
+        for mission in prof.get('missions', []):
+            duration = parse_hhmm(mission.get('flight_hours', '0:00')) * 60
+            flights.append({
+                'id': idx,
+                'pilotName': name,
+                'pilotCallsign': cs,
+                'aircraftType': mission.get('aircraft', 'Unknown'),
+                'missionName': mission.get('mission'),
+                'startTime': mission.get('date'),
+                'durationSeconds': duration,
+                'aaKills': mission.get('aa_kills', 0),
+                'agKills': mission.get('ag_kills', 0),
+                'fratKills': mission.get('frat_kills', 0),
+                'rtbCount': mission.get('rtb', 0),
+                'ejections': mission.get('ejections', 0),
+                'deaths': mission.get('kia', 0),
+            })
+            idx += 1
+    return flights
+
+
+@app.route('/pilots')
+def list_pilots():
+    return jsonify({'pilots': aggregate_pilots()})
+
+
+@app.route('/flights')
+def list_flights():
+    limit = int(request.args.get('limit', 20))
+    offset = int(request.args.get('offset', 0))
+    flights = collect_flights()
+    return jsonify({'flights': flights[offset:offset + limit], 'total': len(flights)})
+
+
+@app.route('/flights/<int:flight_id>')
+def get_flight(flight_id: int):
+    for flight in collect_flights():
+        if flight['id'] == flight_id:
+            return jsonify(flight)
+    return jsonify({'error': 'Flight not found'}), 404
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

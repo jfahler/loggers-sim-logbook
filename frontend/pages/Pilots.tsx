@@ -4,18 +4,18 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Users, Plane, Target, Skull, Clock, Send, AlertTriangle } from 'lucide-react';
-import backend from '~backend/client';
+import api from '@/api';
 
 export function Pilots() {
   const { toast } = useToast();
 
   const { data: pilots, isLoading } = useQuery({
     queryKey: ['pilots'],
-    queryFn: () => backend.logbook.listPilots(),
+    queryFn: () => api.listPilots(),
   });
 
   const sendStatsMutation = useMutation({
-    mutationFn: (pilot: any) => backend.discord.sendPilotStats({
+    mutationFn: (pilot: any) => api.sendPilotStats({
       pilotName: pilot.pilot.name,
       pilotCallsign: pilot.pilot.callsign || null,
       totalFlights: pilot.totalFlights,

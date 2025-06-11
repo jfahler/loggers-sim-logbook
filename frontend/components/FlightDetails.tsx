@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Plane, Clock, Target, Skull, Send, Users, AlertTriangle } from 'lucide-react';
-import backend from '~backend/client';
+import api from '@/api';
 
 interface FlightDetailsProps {
   flightId: number;
@@ -16,13 +16,13 @@ export function FlightDetails({ flightId, onBack }: FlightDetailsProps) {
 
   const { data: flight, isLoading } = useQuery({
     queryKey: ['flight', flightId],
-    queryFn: () => backend.logbook.getFlight({ id: flightId }),
+    queryFn: () => api.getFlight(flightId),
   });
 
   const sendToDiscordMutation = useMutation({
     mutationFn: () => {
       if (!flight) throw new Error('No flight data');
-      return backend.discord.sendFlightSummary({
+      return api.sendFlightSummary({
         flightId: flight.id,
         pilotName: flight.pilotName,
         pilotCallsign: flight.pilotCallsign || null,
