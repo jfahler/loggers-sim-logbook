@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FlightDetails } from '../components/FlightDetails';
 import { Plane, Clock, Target, Skull, ChevronLeft, ChevronRight, AlertTriangle, Users } from 'lucide-react';
-import backend from '~backend/client';
+import api from '@/api';
 
 export function Flights() {
   const [selectedFlightId, setSelectedFlightId] = useState<number | null>(null);
@@ -14,7 +14,7 @@ export function Flights() {
 
   const { data: flights, isLoading } = useQuery({
     queryKey: ['flights', { limit, offset: page * limit }],
-    queryFn: () => backend.logbook.listFlights({ limit, offset: page * limit }),
+    queryFn: () => api.listFlights({ limit, offset: page * limit }),
   });
 
   const totalPages = Math.ceil((flights?.total || 0) / limit);
