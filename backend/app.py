@@ -64,7 +64,7 @@ def upload_xml():
             pass  # File cleanup failed, but processing succeeded
         
         if parse_result.get('success', True):  # Assuming parse_xml returns success status
-            update_profiles()
+            update_profiles(filepath)
             generate_index()
             
             return jsonify({
