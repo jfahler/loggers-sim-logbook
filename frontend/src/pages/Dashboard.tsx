@@ -1,17 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plane, Users, Target, Skull, AlertTriangle } from 'lucide-react';
-import backend from '~backend/client';
+import api from '@/api';
 
 export function Dashboard() {
   const { data: pilots } = useQuery({
     queryKey: ['pilots'],
-    queryFn: () => backend.logbook.listPilots(),
+    queryFn: () => api.listPilots(),
   });
 
   const { data: flights } = useQuery({
     queryKey: ['flights', { limit: 10 }],
-    queryFn: () => backend.logbook.listFlights({ limit: 10 }),
+    queryFn: () => api.listFlights({ limit: 10 }),
   });
 
   const totalFlights = flights?.total || 0;

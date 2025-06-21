@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Upload as UploadIcon, FileText, Send } from 'lucide-react';
-import backend from '~backend/client';
+import api from '@/api';
 
 export function Upload() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,14 +16,11 @@ export function Upload() {
   const queryClient = useQueryClient();
 
   const uploadMutation = useMutation({
-    mutationFn: async (fileData: { filename: string; fileData: string }) => {
-      console.log('Starting upload mutation with:', {
-        filename: fileData.filename,
-        dataLength: fileData.fileData.length
-      });
+    mutationFn: async (uploadFile: File) => {
+      console.log('Starting upload mutation with file:', uploadFile.name);
 
       try {
-        const result = await backend.logbook.uploadTacview(fileData);
+        const result = await api.uploadTacview(uploadFile);
         console.log('Upload successful:', result);
         return result;
       } catch (error: any) {
@@ -55,10 +52,10 @@ export function Upload() {
       if (sendToDiscord && data.flightId) {
         try {
           console.log('Fetching flight details for Discord:', data.flightId);
-          const flight = await backend.logbook.getFlight({ id: data.flightId });
-          
+          const flight = await api.getFlight(data.flightId);
+
           console.log('Sending to Discord:', flight);
-          await backend.discord.sendFlightSummary({
+          await api.sendFlightSummary({
             flightId: flight.id,
             pilotName: flight.pilotName,
             pilotCallsign: flight.pilotCallsign || null,
@@ -194,63 +191,13 @@ export function Upload() {
     console.log('Starting file upload process for:', file.name);
 
     try {
-      const reader = new FileReader();
-      
-      reader.onload = () => {
-        try {
-          const result = reader.result as string;
-          
-          if (!result) {
-            throw new Error('Failed to read file');
-          }
-          
-          console.log('File read successfully, data URL length:', result.length);
-          
-          // Extract base64 data from data URL (remove "data:application/octet-stream;base64," prefix)
-          const base64Data = result.split(',')[1];
-          
-          if (!base64Data || base64Data.trim().length === 0) {
-            throw new Error('Failed to extract file data');
-          }
-          
-          console.log('Base64 data extracted, length:', base64Data.length);
-          
-          // Validate the filename
-          if (!file.name || file.name.trim().length === 0) {
-            throw new Error('Invalid filename');
-          }
-          
-          console.log('Calling upload mutation...');
-          uploadMutation.mutate({
-            filename: file.name.trim(),
-            fileData: base64Data,
-          });
-        } catch (error) {
-          console.error('Error processing file data:', error);
-          toast({
-            title: "File Processing Error",
-            description: "Failed to process the selected file. Please try again.",
-            variant: "destructive",
-          });
-        }
-      };
-      
-      reader.onerror = (error) => {
-        console.error('FileReader error:', error);
-        toast({
-          title: "File Error",
-          description: "Failed to read the selected file. Please try again.",
-          variant: "destructive",
-        });
-      };
-      
-      console.log('Starting file read...');
-      reader.readAsDataURL(file);
+      console.log('Calling upload mutation...');
+      uploadMutation.mutate(file);
     } catch (error) {
-      console.error('Error reading file:', error);
+      console.error('Upload error:', error);
       toast({
-        title: "File Error",
-        description: "Failed to read the selected file. Please try again.",
+        title: "Upload Error",
+        description: "Failed to upload the selected file.",
         variant: "destructive",
       });
     }

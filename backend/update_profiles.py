@@ -14,8 +14,9 @@ def update_profiles_from_xml(xml_path, profile_dir):
         update_profile(profile, mission_data, flight_minutes=45, aircraft=aircraft)
         save_profile(nickname, profile, profile_dir)
 
-def update_profiles():
-    xml_path = Path("pilot_profiles/temp_upload.xml")
+def update_profiles(xml_path):
+    """Update pilot profiles using data from the provided Tacview XML file."""
+    xml_path = Path(xml_path)
     out_dir = Path("pilot_profiles")
     update_profiles_from_xml(xml_path, out_dir)
 
