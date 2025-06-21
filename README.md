@@ -7,10 +7,15 @@ _Loggers is a self-hosted, open-source flight logbook app for DCS World players 
 ## 🏗️ Architecture
 
 - **Backend**: Python Flask API for processing Tacview XML files
-- **Frontend**: React/TypeScript with Vite for the web interface
+- **Frontend**: React/TypeScript with Vite and Tailwind CSS for the web interface
 - **Data Storage**: JSON files for pilot profiles and mission data
 
 ## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Node.js 18+
+- npm or yarn
 
 ### Backend Setup
 
@@ -19,9 +24,9 @@ _Loggers is a self-hosted, open-source flight logbook app for DCS World players 
 cd backend
 ```
 
-2. Run the setup script:
+2. Install Python dependencies:
 ```bash
-python setup.py
+python -m pip install -r requirements.txt
 ```
 
 3. Start the development server:
@@ -50,6 +55,20 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173`
 
+### Quick Development Launcher
+
+Use the provided scripts to start both servers quickly:
+
+**Windows (PowerShell):**
+```powershell
+.\start-dev.ps1
+```
+
+**Windows (Command Prompt):**
+```cmd
+start-dev.bat
+```
+
 ## 📁 Project Structure
 
 ```
@@ -68,7 +87,11 @@ loggers-sim-logbook/
 │   ├── src/               # Source code
 │   ├── components/        # React components
 │   ├── pages/            # Page components
+│   ├── tailwind.config.js # Tailwind CSS configuration
+│   ├── postcss.config.js  # PostCSS configuration
 │   └── package.json      # Node dependencies
+├── start-dev.ps1          # PowerShell development launcher
+├── start-dev.bat          # Batch development launcher
 └── pilot_profiles/        # Legacy pilot profiles
 ```
 
@@ -97,8 +120,9 @@ MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
 - **Pilot Statistics**: Track kills, deaths, flight hours, and more
 - **Multi-Platform Support**: DCS World, BMS, and other flight simulators
 - **Discord Integration**: Automated mission summaries and pilot stats
-- **Web Interface**: Modern React frontend for viewing statistics
+- **Web Interface**: Modern React frontend with Tailwind CSS styling
 - **RESTful API**: Clean API endpoints for integration
+- **Responsive Design**: Works on desktop, tablet, and mobile
 
 ## 🛠️ Development
 
@@ -113,7 +137,7 @@ python dev.py  # Starts with auto-reload
 
 ```bash
 cd frontend
-npm run dev    # Starts Vite dev server
+npm run dev    # Starts Vite dev server with hot reload
 ```
 
 ### API Testing
@@ -142,9 +166,18 @@ curl http://localhost:5000/pilots
 - `POST /discord/pilot-stats` - Send pilot stats to Discord
 - `POST /discord/flight-summary` - Send flight summary to Discord
 
+## 🎨 UI Components
+
+The frontend uses a modern component library with:
+- **Tailwind CSS** for styling
+- **Radix UI** for accessible components
+- **Lucide React** for icons
+- **React Query** for data fetching
+- **React Router** for navigation
+
 ## 🤝 Contributing
 
-This is an early development build. Contributions are welcome!
+This is an active development project. Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch
@@ -157,5 +190,5 @@ This project is open source. See LICENSE file for details.
 
 ---
 
-**Note**: This is an early development build. Some features may not work as expected.
+**Status**: ✅ Fully functional with working CSS and API integration
 
