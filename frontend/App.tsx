@@ -1,11 +1,11 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-// import { Toaster } from '@/components/ui/toaster';
-import { Navigation } from './components/Navigation';
-import { Dashboard } from './pages/Dashboard';
-import { Flights } from './pages/Flights';
-import { Pilots } from './pages/Pilots';
-import { Upload } from './pages/Upload';
+import { Toaster } from '@/components/ui/toaster';
+import { Navigation } from './src/components/Navigation';
+import { Dashboard } from './src/pages/Dashboard';
+import { Flights } from './src/pages/Flights';
+import { Pilots } from './src/pages/Pilots';
+import { Upload } from './src/pages/Upload';
 
 const queryClient = new QueryClient();
 
