@@ -1,6 +1,7 @@
 # app.py improvements
 
 import os
+import logging
 from flask import Flask, send_from_directory, request, jsonify
 import json
 from werkzeug.utils import secure_filename
@@ -9,13 +10,24 @@ from xml_parser import parse_xml
 from update_profiles import update_profiles
 from webhook_helpers import send_pilot_stats, send_flight_summary
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration
+# Configuration from environment variables
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), 'pilot_profiles')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
-MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
+MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB default
 
 # Ensure directories exist
 os.makedirs(PROFILE_DIR, exist_ok=True)
@@ -24,46 +36,60 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
 # Initialize pilot index at startup
-generate_index()
+try:
+    generate_index()
+    logger.info("Pilot index initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize pilot index: {e}")
 
 @app.route('/')
 def root():
     return jsonify({
         "status": "online",
         "service": "Loggers DCS Squadron Logbook",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "description": "Tacview XML processing and pilot statistics tracking"
     })
 
 @app.route('/upload_xml', methods=['POST'])
 def upload_xml():
     try:
+        logger.info("Received XML upload request")
+        
         if 'file' not in request.files:
+            logger.warning("No file uploaded in request")
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
         
         if file.filename == '':
+            logger.warning("Empty filename in upload request")
             return jsonify({"error": "No file selected"}), 400
 
         if not file.filename.lower().endswith('.xml'):
+            logger.warning(f"Invalid file type uploaded: {file.filename}")
             return jsonify({"error": "Only XML files are allowed"}), 400
 
         # Use secure filename to prevent path traversal
         filename = secure_filename(file.filename)
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         
+        logger.info(f"Saving uploaded file: {filename}")
         file.save(filepath)
 
         # Process the XML
+        logger.info(f"Processing XML file: {filepath}")
         parse_result = parse_xml(filepath)
         
         # Clean up the uploaded file after processing
         try:
             os.remove(filepath)
-        except OSError:
-            pass  # File cleanup failed, but processing succeeded
+            logger.debug(f"Cleaned up temporary file: {filepath}")
+        except OSError as e:
+            logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
         
-        if parse_result.get('success', True):  # Assuming parse_xml returns success status
+        if parse_result.get('success', True):
+            logger.info(f"XML parsing successful, updating profiles for {parse_result.get('pilots_count', 'unknown')} pilots")
             update_profiles(filepath)
             generate_index()
             
@@ -73,12 +99,15 @@ def upload_xml():
                 "pilots_updated": parse_result.get('pilots_count', 'unknown')
             }), 200
         else:
+            error_msg = parse_result.get('error', 'Unknown error')
+            logger.error(f"XML parsing failed: {error_msg}")
             return jsonify({
                 "status": "error", 
-                "message": f"XML parsing failed: {parse_result.get('error', 'Unknown error')}"
+                "message": f"XML parsing failed: {error_msg}"
             }), 400
             
     except Exception as e:
+        logger.error(f"Upload processing failed: {str(e)}", exc_info=True)
         return jsonify({
             "status": "error",
             "message": f"Upload processing failed: {str(e)}"
