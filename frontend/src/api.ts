@@ -21,7 +21,7 @@ export async function getFlight(id: number) {
   return res.json();
 }
 
-export async function uploadTacview(file: File) {
+export async function uploadXml(file: File) {
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(`${API_BASE}/upload_xml`, { method: 'POST', body: formData });
@@ -53,7 +53,7 @@ export default {
   listPilots,
   listFlights,
   getFlight,
-  uploadTacview,
+  uploadXml,
   sendPilotStats,
   sendFlightSummary,
 };

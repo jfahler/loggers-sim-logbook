@@ -20,7 +20,7 @@ export function Upload() {
       console.log('Starting upload mutation with file:', uploadFile.name);
 
       try {
-        const result = await api.uploadTacview(uploadFile);
+        const result = await api.uploadXml(uploadFile);
         console.log('Upload successful:', result);
         return result;
       } catch (error: any) {
@@ -95,7 +95,7 @@ export function Upload() {
     onError: (error: any) => {
       console.error('Upload mutation error:', error);
       
-      let errorMessage = "Failed to upload and process the Tacview file";
+      let errorMessage = "Failed to upload and process the XML file";
       
       // Handle different types of errors
       if (error?.message) {
@@ -104,15 +104,15 @@ export function Upload() {
         } else if (error.message.includes('filename and fileData are required')) {
           errorMessage = "Invalid file data. Please try selecting the file again.";
         } else if (error.message.includes('invalid base64 file data')) {
-          errorMessage = "File format error. Please ensure you're uploading a valid Tacview file.";
+          errorMessage = "File format error. Please ensure you're uploading a valid XML file.";
         } else if (error.message.includes('file size exceeds')) {
           errorMessage = "File is too large. Please select a file smaller than 50MB.";
-        } else if (error.message.includes('file must have .acmi or .txt extension')) {
-          errorMessage = "Invalid file type. Please select a .acmi or .txt file.";
+        } else if (error.message.includes('file must have .xml extension')) {
+          errorMessage = "Invalid file type. Please select a .xml file.";
         } else if (error.message.includes('could not extract pilot name')) {
-          errorMessage = "Unable to parse pilot information from the file. Please ensure it's a valid Tacview file.";
+          errorMessage = "Unable to parse pilot information from the file. Please ensure it's a valid Tacview XML file.";
         } else if (error.message.includes('could not extract aircraft type')) {
-          errorMessage = "Unable to parse aircraft information from the file. Please ensure it's a valid Tacview file.";
+          errorMessage = "Unable to parse aircraft information from the file. Please ensure it's a valid Tacview XML file.";
         } else {
           errorMessage = error.message;
         }
@@ -163,12 +163,12 @@ export function Upload() {
       }
       
       // Validate file extension
-      const validExtensions = ['.acmi', '.txt'];
+      const validExtensions = ['.xml'];
       const fileExtension = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
       if (!validExtensions.includes(fileExtension)) {
         toast({
           title: "Invalid File Type",
-          description: "Please select a .acmi or .txt file",
+          description: "Please select a .xml file",
           variant: "destructive",
         });
         return;
@@ -206,8 +206,8 @@ export function Upload() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Upload Tacview File</h1>
-        <p className="text-gray-600 mt-2">Upload a Tacview (.acmi) file to track your DCS flight statistics</p>
+        <h1 className="text-3xl font-bold text-gray-900">Upload Tacview XML File</h1>
+        <p className="text-gray-600 mt-2">Upload a Tacview XML file to track your DCS flight statistics</p>
       </div>
 
       <Card className="max-w-2xl">
@@ -219,16 +219,16 @@ export function Upload() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="tacview-file">Select Tacview File</Label>
+            <Label htmlFor="tacview-file">Select Tacview XML File</Label>
             <Input
               id="tacview-file"
               type="file"
-              accept=".acmi,.txt"
+              accept=".xml"
               onChange={handleFileChange}
               disabled={uploadMutation.isPending}
             />
             <p className="text-sm text-gray-600">
-              Supported formats: .acmi, .txt (Tacview files) • Max size: 50MB
+              Supported formats: .xml (Tacview XML files) • Max size: 50MB
             </p>
           </div>
 
@@ -273,7 +273,7 @@ export function Upload() {
 
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle>Simplified Processing</CardTitle>
+          <CardTitle>XML Processing Benefits</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -290,12 +290,13 @@ export function Upload() {
             </ul>
           </div>
           <div className="space-y-2">
-            <h4 className="font-medium">Benefits:</h4>
+            <h4 className="font-medium">XML Advantages:</h4>
             <ul className="text-sm text-gray-600 space-y-1">
               <li>• Faster processing of large files</li>
               <li>• Reduced storage requirements</li>
               <li>• Focus on key combat statistics</li>
               <li>• Simplified Discord notifications</li>
+              <li>• Better compatibility with Tacview exports</li>
             </ul>
           </div>
         </CardContent>
