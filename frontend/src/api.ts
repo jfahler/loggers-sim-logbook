@@ -49,6 +49,22 @@ export async function sendFlightSummary(data: any) {
   return res.json();
 }
 
+export async function getSquadronCallsigns() {
+  const res = await fetch(`${API_BASE}/squadron-callsigns`);
+  if (!res.ok) throw new Error('Failed to fetch squadron callsigns');
+  return res.json();
+}
+
+export async function updateSquadronCallsigns(callsigns: string[]) {
+  const res = await fetch(`${API_BASE}/squadron-callsigns`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ callsigns }),
+  });
+  if (!res.ok) throw new Error('Failed to update squadron callsigns');
+  return res.json();
+}
+
 export default {
   listPilots,
   listFlights,
@@ -56,4 +72,6 @@ export default {
   uploadXml,
   sendPilotStats,
   sendFlightSummary,
+  getSquadronCallsigns,
+  updateSquadronCallsigns,
 };

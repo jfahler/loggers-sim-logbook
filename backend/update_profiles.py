@@ -3,6 +3,10 @@ from pathlib import Path
 from xml_parser import parse_tacview_xml
 from profile_manager import load_profile, save_profile, update_profile
 
+def is_player_client(pilot_name: str, aircraft_name: str, group: str = "") -> bool:
+    print(f"FILTER CHECK: {pilot_name}")
+    # ... rest of function ...
+
 def update_profiles_from_xml(xml_path, profile_dir):
     pilot_missions = parse_tacview_xml(xml_path)
     profile_dir.mkdir(exist_ok=True)

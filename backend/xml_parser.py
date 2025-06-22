@@ -6,6 +6,7 @@ from nickname_matcher import resolve_fuzzy_nickname
 import math
 import re
 import json
+import os
 
 # Load player profiles for AI filtering
 def load_player_profiles():
@@ -64,6 +65,16 @@ def parse_xml(filepath: str) -> dict:
         # Parse the Tacview XML
         pilot_data = parse_tacview_xml(filepath)
         
+        # Check if this was a duplicate mission
+        if pilot_data and pilot_data.get("duplicate"):
+            return {
+                "success": True,
+                "duplicate": True,
+                "message": f"Mission already processed: {pilot_data['mission_name']} on {pilot_data['mission_date']}",
+                "pilots_count": 0,
+                "pilot_data": {}
+            }
+        
         if not pilot_data:
             return {"success": False, "error": "No pilot data found in XML"}
         
@@ -88,6 +99,11 @@ def parse_tacview_xml(xml_path: str) -> dict:
         mission_name = extract_mission_name(root, xml_path)
         mission_date = extract_mission_date(root)
         mission_duration = extract_mission_duration(root)
+        
+        # Check for duplicate mission processing
+        if is_mission_already_processed(mission_name, mission_date):
+            print(f"Mission already processed: {mission_name} on {mission_date}")
+            return {"duplicate": True, "mission_name": mission_name, "mission_date": mission_date}
         
         events = root.find("Events")
         if events is None:
@@ -135,6 +151,9 @@ def parse_tacview_xml(xml_path: str) -> dict:
         
         # Calculate actual flight hours (excluding stationary time)
         calculate_actual_flight_hours(pilot_missions, pilot_positions)
+        
+        # Mark mission as processed
+        mark_mission_as_processed(mission_name, mission_date)
         
         # Post-process to clean up data
         return finalize_pilot_data(pilot_missions)
@@ -207,9 +226,15 @@ def process_event(event, pilot_missions: dict, ground_types: set, pilot_position
     if not pilot or pilot.lower() == "unknown":
         return
     
+    # Debug: Log all pilots being checked
+    print(f"Checking pilot: '{pilot}' (aircraft: {aircraft}, group: {group})")
+    
     # Only process player clients, not AI
     if not is_player_client(pilot, aircraft, group):
+        print(f"  -> FILTERED OUT (AI)")
         return
+    
+    print(f"  -> ACCEPTED (Player)")
     
     # Resolve nickname using fuzzy matching
     nickname = resolve_fuzzy_nickname(pilot)
@@ -405,150 +430,301 @@ def is_player_client(pilot_name: str, aircraft_name: str, group: str = "") -> bo
     if is_known_player(pilot_name):
         return True
     
-    # Check group first - AI groups often have specific patterns
-    if group:
-        group_lower = group.lower()
-        # AI group patterns
-        ai_group_patterns = [
-            r'.*iq.*',  # Groups with "IQ" (Intelligence Quotient) are often AI
-            r'.*ai.*',  # Groups with "AI" 
-            r'.*bot.*', # Groups with "bot"
-            r'.*computer.*', # Groups with "computer"
-            r'.*enemy.*', # Groups with "enemy"
-            r'.*hostile.*', # Groups with "hostile"
-        ]
+    # Only accept pilots flying specific player aircraft
+    player_aircraft = [
+        # Full fidelity modules
+        "DCS: F4U-1D Corsair",
+        "DCS: F-5E Remastered", 
+        "DCS: Flaming Cliffs 2024",
+        "DCS: F-4E Phantom II",
+        "DCS: F-15E",
+        "DCS: MB-339",
+        "DCS: Mirage F1",
+        "DCS: Mosquito FB VI",
+        "DCS: A-10C II Tank Killer",
+        "DCS: P-47D Thunderbolt",
+        "DCS: JF-17 Thunder",
+        "DCS: F-16C Viper",
+        "DCS: Fw 190 A-8",
+        "DCS: I-16",
+        "DCS: MiG-19P Farmer",
+        "DCS: Christen Eagle II",
+        "DCS: F-14 Tomcat",
+        "DCS: Yak-52",
+        "DCS: F/A-18C",
+        "DCS: AV-8B Night Attack V/STOL",
+        "DCS: AJS-37 Viggen",
+        "DCS: Spitfire LF Mk. IX",
+        "DCS: F-5E",
+        "DCS: M-2000C",
+        "DCS: L-39 Albatros",
+        "DCS: C-101 Aviojet",
+        "DCS: Bf 109 K-4 Kurfürst",
+        "DCS: MiG-21bis",
+        "DCS: Fw 190 D-9 Dora",
+        "DCS: P-51D Mustang",
+        "DCS: A-10C Warthog",
+        "A-4 Skyhawk",
+        "A-4E",
         
-        for pattern in ai_group_patterns:
-            if re.search(pattern, group_lower):
-                return False
-    
-    # Skip obvious AI units - use word boundaries for more precise matching
-    ai_indicators = [
-        "ai", "computer", "cpu", "bot", "enemy", "hostile",
-        "springfield", "sting", "wizard", "arco", "shell", "colt",
-        "hawk", "eagle", "falcon", "viper", "hornet", "tomcat",
-        "flanker", "fulcrum", "frogfoot", "hokum", "hind", "shark",
-        "apache", "blackhawk", "chinook", "osprey", "hercules",
-        "ai_", "player_", "client_", "server_", "host_", "spectator",
-        "observer", "referee", "admin", "moderator", "system"
+        # Helicopters
+        "DCS: UH-1H Huey",
+        "DCS: Mi-8MT Hip",
+        "DCS: Ka-50 Black Shark",
+        "DCS: SA342 Gazelle",
+        "DCS: Mi-24P Hind",
+        "DCS: AH-64D Apache",
+        "DCS: OH-58D Kiowa Warrior",
+        "DCS: AH-64E Apache",
+        "DCS: Mi-28N Havoc",
+        "DCS: Ka-50-3 Black Shark",
+        "DCS: CH-47F Chinook",
+        "DCS: UH-60L Black Hawk",
+        "DCS: Mi-17 Hip",
+        "DCS: AH-1W Super Cobra",
+        "DCS: AH-1Z Viper",
+        "DCS: UH-1Y Venom",
+        "DCS: Mi-26 Halo",
+        "DCS: Ka-27 Helix",
+        "DCS: Ka-29 Helix",
+        "DCS: Mi-35M Hind",
+        "DCS: Mi-28 Havoc",
+        "DCS: AH-6J Little Bird",
+        "DCS: OH-6A Cayuse",
+        "DCS: UH-1N Twin Huey",
+        "DCS: CH-53E Super Stallion",
+        "DCS: CH-46 Sea Knight",
+        "DCS: V-22 Osprey",
+        "DCS: Mi-8",
+        "DCS: Ka-50",
+        "DCS: AH-64",
+        "DCS: UH-1",
+        "DCS: Mi-24",
+        "DCS: SA342",
+        "DCS: OH-58D",
+        "DCS: CH-47",
+        "DCS: UH-60",
+        "DCS: Mi-17",
+        "DCS: AH-1",
+        "DCS: Mi-26",
+        "DCS: Ka-27",
+        "DCS: Mi-35",
+        "DCS: AH-6",
+        "DCS: OH-6",
+        "DCS: CH-53",
+        "DCS: CH-46",
+        "DCS: V-22",
+        
+        # Flaming Cliffs aircraft (simplified names)
+        "MiG-15bis",
+        "F-5E Flaming Cliffs",
+        "F-86F Flaming Cliffs", 
+        "MiG-29 Flaming Cliffs",
+        "Su-33 Flaming Cliffs",
+        "Su-27 Flaming Cliffs",
+        "F-15C Flaming Cliffs",
+        "Su-25 Flaming Cliffs",
+        "A-10A Flaming Cliffs",
+        "F-86F Sabre",
+        
+        # Alternative names that might appear
+        "F-4E Phantom",
+        "F-15E Strike Eagle",
+        "F-16C",
+        "F/A-18C Hornet",
+        "AV-8B",
+        "A-10C",
+        "P-51D",
+        "MiG-21",
+        "MiG-29",
+        "Su-27",
+        "Su-33",
+        "F-15C",
+        "Su-25",
+        "A-10A",
+        "F-5E",
+        "F-86F",
+        "MiG-15",
+        "Fw 190",
+        "Bf 109",
+        "Spitfire",
+        "Mosquito",
+        "Corsair",
+        "Thunderbolt",
+        "Mustang",
+        "Viggen",
+        "Mirage F1",
+        "M-2000C",
+        "L-39",
+        "C-101",
+        "Yak-52",
+        "Christen Eagle",
+        "JF-17",
+        "I-16",
+        "MiG-19",
+        "Fw 190 A-8",
+        "Fw 190 D-9",
+        "Bf 109 K-4",
+        "MB-339",
+        "AJS-37",
+        "AV-8B Night Attack",
+        "A-4 Skyhawk",
+        "A-4E Skyhawk",
+        
+        # Additional helicopter names
+        "Huey",
+        "Hip",
+        "Black Shark",
+        "Gazelle",
+        "Hind",
+        "Apache",
+        "Kiowa",
+        "Havoc",
+        "Chinook",
+        "Black Hawk",
+        "Super Cobra",
+        "Viper",
+        "Venom",
+        "Halo",
+        "Helix",
+        "Little Bird",
+        "Cayuse",
+        "Twin Huey",
+        "Super Stallion",
+        "Sea Knight",
+        "Osprey"
     ]
     
-    # AI squadron/group patterns - these indicate AI units
-    ai_squadron_patterns = [
-        r'^[a-z]+\d{1,2}$',  # word followed by 1-2 digits (e.g., pontiac61, dynamolabyrinth1)
-        r'^[a-z]+\d{3}$',  # word followed by 3 digits (but exclude common player patterns)
-        r'^\d{2}[a-z]+$',  # 2 digits followed by word
-        r'^\d{3}[a-z]+$',  # 3 digits followed by word
-        r'^[a-z]+\d{1,2}[a-z]+$',  # word + 1-2 digits + word
-        r'^[a-z]+pilot\d+$',  # word + pilot + number (e.g., gudautastrike121pilot1)
-        r'^[a-z]+cas\d+pilot\d+$',  # word + cas + number + pilot + number
-        r'^[a-z]+barcap\d+pilot\d+$',  # word + barcap + number + pilot + number
-        r'^[a-z]+sead\d+pilot\d+$',  # word + sead + number + pilot + number
-        r'^[a-z]+strike\d+pilot\d+$',  # word + strike + number + pilot + number
-    ]
-    
-    # Military unit patterns that indicate AI
-    military_patterns = [
-        r'^\d{4}\s*\|\s*(DDG|CG|FFG|LHA|LHD|CVN|SSN|SSBN|SSGN)',  # Ship identifiers
-        r'^\d{4}\s*\|\s*(Tank|APC|IFV|MBT|SPG|MLRS|SAM|AAA)',     # Ground vehicle identifiers
-        r'^\d{4}\s*\|\s*(F-16|F-18|F-15|F-22|F-35|A-10|B-1|B-2|B-52)',  # Aircraft with numbers
-        r'^\d{4}\s*\|\s*(MiG|Su|Ka|Mi|Il|Tu|Yak)',                # Russian aircraft
-        r'^\d{4}\s*\|\s*(Eurofighter|Rafale|Gripen|Typhoon)',     # European aircraft
-        r'^\d{4}\s*\|\s*(Arleigh Burke|Ticonderoga|Nimitz|Ford)', # Ship classes
-        r'^\d{4}\s*\|\s*(Abrams|Bradley|Stryker|Paladin)',        # Ground vehicle classes
-        r'^\d+[a-z]+(bataillon|brigade|taskforce|airdefense|infantry)',  # Military units
-        r'^\d+[a-z]+(division|regiment|squadron|wing|group)',     # Military units
-    ]
-    
-    pilot_lower = pilot_name.lower()
+    # Check if the aircraft is in our whitelist
     aircraft_lower = aircraft_name.lower() if aircraft_name else ""
+    aircraft_allowed = False
     
-    # Check for AI squadron patterns first, but exclude known player patterns
-    for pattern in ai_squadron_patterns:
-        if re.match(pattern, pilot_lower):
-            # If it matches a known player, allow it
-            if is_known_player(pilot_name):
-                continue
-            return False
+    for allowed_aircraft in player_aircraft:
+        if allowed_aircraft.lower() in aircraft_lower or aircraft_lower in allowed_aircraft.lower():
+            aircraft_allowed = True
+            break
     
-    # Check for military unit patterns
-    for pattern in military_patterns:
-        if re.search(pattern, pilot_name, re.IGNORECASE):
-            return False
+    # If aircraft not in whitelist, it's AI
+    if not aircraft_allowed:
+        return False
     
-    # Check pilot name against AI indicators with word boundaries
-    for indicator in ai_indicators:
-        # Use exact word matching to avoid false positives
-        if (indicator == pilot_lower or 
-            pilot_lower.startswith(indicator + "_") or 
-            pilot_lower.startswith(indicator + " ") or
-            pilot_lower.endswith("_" + indicator) or
-            pilot_lower.endswith(" " + indicator) or
-            " " + indicator + " " in " " + pilot_lower + " "):
-            return False
+    # Now check if pilot name matches squadron callsigns
+    # Load squadron callsigns from config
+    squadron_callsigns = load_squadron_callsigns()
     
-    # Check aircraft name for AI indicators
-    # REMOVED: This was causing false positives - real players can fly any aircraft type
-    # for indicator in ai_indicators:
-    #     if indicator in aircraft_lower:
-    #         return False
-    
-    # Look for player patterns (callsign | name) - but be more careful
-    if "|" in pilot_name:
-        # Check if it's a military unit pattern first
-        parts = pilot_name.split("|")
-        if len(parts) == 2:
-            left_part = parts[0].strip()
-            right_part = parts[1].strip()
-            
-            # If left part is just numbers, likely AI
-            if re.match(r'^\d+$', left_part):
-                return False
-            
-            # If right part contains military identifiers, likely AI
-            military_terms = ['DDG', 'CG', 'FFG', 'LHA', 'LHD', 'CVN', 'SSN', 'SSBN', 'SSGN', 
-                            'Tank', 'APC', 'IFV', 'MBT', 'SPG', 'MLRS', 'SAM', 'AAA',
-                            'Arleigh Burke', 'Ticonderoga', 'Nimitz', 'Ford',
-                            'Abrams', 'Bradley', 'Stryker', 'Paladin']
-            for term in military_terms:
-                if term.lower() in right_part.lower():
-                    return False
-            
-            # If it passes these checks, likely a real player
-            return True
-    
-    # Look for player patterns (callsign - name)
-    if " - " in pilot_name:
+    if not squadron_callsigns:
+        # If no squadron callsigns configured, accept all player aircraft pilots
         return True
     
-    # Look for player patterns (callsign name)
-    if " " in pilot_name and not any(ai_indicator in pilot_lower for ai_indicator in ai_indicators):
-        # Check if it looks like a real player name
-        parts = pilot_name.split()
-        if len(parts) >= 2:
-            # If it has multiple parts and doesn't match AI patterns, likely a player
+    # Check if pilot name contains any squadron callsign
+    pilot_lower = pilot_name.lower()
+    
+    for callsign in squadron_callsigns:
+        callsign_lower = callsign.lower()
+        
+        # Direct match
+        if callsign_lower in pilot_lower or pilot_lower in callsign_lower:
             return True
+        
+        # Check for FLIGHTCALLSIGN | PERSONALCALLSIGN pattern
+        if "|" in pilot_name:
+            parts = pilot_name.split("|")
+            if len(parts) == 2:
+                left_part = parts[0].strip().lower()
+                right_part = parts[1].strip().lower()
+                
+                # Check if callsign appears in either part
+                if callsign_lower in left_part or callsign_lower in right_part:
+                    return True
+        
+        # Check for FLIGHTCALLSIGN - PERSONALCALLSIGN pattern
+        if " - " in pilot_name:
+            parts = pilot_name.split(" - ")
+            if len(parts) == 2:
+                left_part = parts[0].strip().lower()
+                right_part = parts[1].strip().lower()
+                
+                # Check if callsign appears in either part
+                if callsign_lower in left_part or callsign_lower in right_part:
+                    return True
     
-    # Additional checks for real player patterns
-    # Look for callsigns that are likely real players (not AI)
-    real_player_patterns = [
-        # Common player name patterns
-        r'^[A-Za-z0-9_]{2,20}$',  # Alphanumeric callsigns
-        r'^[A-Za-z]+[0-9]+$',     # Letters followed by numbers
-        r'^\d+[A-Za-z]+$',        # Numbers followed by letters
-        r'^[A-Za-z]+_[A-Za-z0-9]+$',  # Underscore separated
-        r'^[A-Za-z]+-[A-Za-z0-9]+$',  # Dash separated
-    ]
-    
-    for pattern in real_player_patterns:
-        if re.match(pattern, pilot_name):
-            # Additional check: make sure it's not too generic
-            if len(pilot_name) >= 3 and not pilot_name.isdigit():
-                return True
-    
-    # If it's a simple word and not in AI indicators, likely a player
-    if len(pilot_name) >= 3 and pilot_name.isalpha() and pilot_name.lower() not in ai_indicators:
-        return True
-    
-    # If we can't determine, be conservative and assume it's AI
+    # If we have squadron callsigns but pilot doesn't match any, it's likely AI
     return False
+
+def load_squadron_callsigns() -> list:
+    """Load squadron callsigns from config file"""
+    try:
+        config_path = os.path.join(os.path.dirname(__file__), 'config', 'squadron_callsigns.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                data = json.load(f)
+                return data.get('callsigns', [])
+    except Exception as e:
+        print(f"Warning: Could not load squadron callsigns: {e}")
+    
+    return []
+
+def save_squadron_callsigns(callsigns: list):
+    """Save squadron callsigns to config file"""
+    try:
+        config_dir = os.path.join(os.path.dirname(__file__), 'config')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        config_path = os.path.join(config_dir, 'squadron_callsigns.json')
+        with open(config_path, 'w') as f:
+            json.dump({'callsigns': callsigns}, f, indent=2)
+        
+        return True
+    except Exception as e:
+        print(f"Error saving squadron callsigns: {e}")
+        return False
+
+def is_mission_already_processed(mission_name: str, mission_date: str) -> bool:
+    """Check if a mission has already been processed"""
+    try:
+        processed_file = os.path.join(os.path.dirname(__file__), 'config', 'processed_missions.json')
+        if os.path.exists(processed_file):
+            with open(processed_file, 'r') as f:
+                processed_missions = json.load(f)
+                mission_key = f"{mission_name}_{mission_date}"
+                return mission_key in processed_missions
+    except Exception as e:
+        print(f"Warning: Could not check processed missions: {e}")
+    
+    return False
+
+def mark_mission_as_processed(mission_name: str, mission_date: str):
+    """Mark a mission as processed to prevent duplicates"""
+    try:
+        config_dir = os.path.join(os.path.dirname(__file__), 'config')
+        os.makedirs(config_dir, exist_ok=True)
+        
+        processed_file = os.path.join(config_dir, 'processed_missions.json')
+        
+        # Load existing processed missions
+        processed_missions = {}
+        if os.path.exists(processed_file):
+            with open(processed_file, 'r') as f:
+                processed_missions = json.load(f)
+        
+        # Add this mission
+        mission_key = f"{mission_name}_{mission_date}"
+        processed_missions[mission_key] = {
+            "mission_name": mission_name,
+            "mission_date": mission_date,
+            "processed_at": datetime.now().isoformat()
+        }
+        
+        # Keep only last 100 missions to prevent file from growing too large
+        if len(processed_missions) > 100:
+            # Remove oldest entries
+            sorted_missions = sorted(processed_missions.items(), 
+                                   key=lambda x: x[1].get('processed_at', ''))
+            processed_missions = dict(sorted_missions[-100:])
+        
+        # Save back to file
+        with open(processed_file, 'w') as f:
+            json.dump(processed_missions, f, indent=2)
+            
+    except Exception as e:
+        print(f"Warning: Could not mark mission as processed: {e}")

@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
+from generate_index import generate_index
 
 def check_python_version():
     """Check if Python version is compatible"""
@@ -62,7 +63,6 @@ def initialize_pilot_index():
     """Initialize the pilot index"""
     print("👥 Initializing pilot index...")
     try:
-        from generate_index import generate_index
         generate_index()
         print("✅ Pilot index initialized")
     except Exception as e:

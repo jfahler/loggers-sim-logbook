@@ -1,16 +1,16 @@
-# app.py improvements
-
 import os
-import logging
-from flask import Flask, send_from_directory, request, jsonify
 import json
-from werkzeug.utils import secure_filename
-from generate_index import generate_index
-from xml_parser import parse_xml
-from update_profiles import update_profiles, update_profiles_from_data
-from webhook_helpers import send_pilot_stats, send_flight_summary
+import logging
 from datetime import datetime
+
+from flask import Flask, request, jsonify, send_from_directory
+from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+
+from xml_parser import parse_xml, load_squadron_callsigns, save_squadron_callsigns
+from update_profiles import update_profiles_from_data
+from generate_index import generate_index
+from webhook_helpers import send_pilot_stats, send_flight_summary
 
 # Load environment variables
 load_dotenv()
@@ -66,12 +66,12 @@ def upload_xml():
             logger.warning("Empty filename in upload request")
             return jsonify({"error": "No file selected"}), 400
 
-        if not file.filename.lower().endswith('.xml'):
+        if not file.filename or not file.filename.lower().endswith('.xml'):
             logger.warning(f"Invalid file type uploaded: {file.filename}")
             return jsonify({"error": "Only XML files are allowed"}), 400
 
         # Use secure filename to prevent path traversal
-        filename = secure_filename(file.filename)
+        filename = secure_filename(file.filename or '')
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         
         logger.info(f"Saving uploaded file: {filename}")
@@ -320,6 +320,53 @@ def get_flight(flight_id: int):
         if flight['id'] == flight_id:
             return jsonify(flight)
     return jsonify({'error': 'Flight not found'}), 404
+
+
+@app.route('/squadron-callsigns', methods=['GET'])
+def get_squadron_callsigns():
+    """Get current squadron callsigns"""
+    callsigns = load_squadron_callsigns()
+    return jsonify({'callsigns': callsigns})
+
+
+@app.route('/squadron-callsigns', methods=['POST'])
+def update_squadron_callsigns():
+    """Update squadron callsigns"""
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+            
+        data = request.get_json()
+        
+        if not data or 'callsigns' not in data:
+            return jsonify({"error": "callsigns array is required"}), 400
+        
+        callsigns = data['callsigns']
+        
+        if not isinstance(callsigns, list):
+            return jsonify({"error": "callsigns must be an array"}), 400
+        
+        # Validate callsigns (basic validation)
+        valid_callsigns = []
+        for callsign in callsigns:
+            if isinstance(callsign, str) and callsign.strip():
+                valid_callsigns.append(callsign.strip())
+        
+        # Save to config file
+        if save_squadron_callsigns(valid_callsigns):
+            return jsonify({
+                "success": True,
+                "message": f"Updated squadron callsigns: {', '.join(valid_callsigns)}",
+                "callsigns": valid_callsigns
+            })
+        else:
+            return jsonify({"error": "Failed to save squadron callsigns"}), 500
+            
+    except Exception as e:
+        return jsonify({
+            "success": False, 
+            "message": f"Error updating squadron callsigns: {str(e)}"
+        }), 500
 
 
 if __name__ == '__main__':

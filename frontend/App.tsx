@@ -6,6 +6,7 @@ import { Dashboard } from './src/pages/Dashboard';
 import { Flights } from './src/pages/Flights';
 import { Pilots } from './src/pages/Pilots';
 import { Upload } from './src/pages/Upload';
+import Squadron from './src/pages/Squadron';
 
 const queryClient = new QueryClient();
 
@@ -20,6 +21,7 @@ function AppInner() {
             <Route path="/flights" element={<Flights />} />
             <Route path="/pilots" element={<Pilots />} />
             <Route path="/upload" element={<Upload />} />
+            <Route path="/squadron" element={<Squadron />} />
           </Routes>
         </main>
         <Toaster />

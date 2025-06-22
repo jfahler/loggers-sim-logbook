@@ -1,12 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Plane, Users, Upload, BarChart3 } from 'lucide-react';
+import { Plane, Users, Upload, BarChart3, Settings } from 'lucide-react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
   { name: 'Flights', href: '/flights', icon: Plane },
   { name: 'Pilots', href: '/pilots', icon: Users },
   { name: 'Upload', href: '/upload', icon: Upload },
+  { name: 'Squadron', href: '/squadron', icon: Settings },
 ];
 
 export function Navigation() {
