@@ -1,4 +1,3 @@
-
 import argparse
 from pathlib import Path
 from xml_parser import parse_tacview_xml
@@ -12,6 +11,22 @@ def update_profiles_from_xml(xml_path, profile_dir):
         aircraft = mission_data.get("aircraft", "Unknown")
         profile = load_profile(nickname, profile_dir)
         update_profile(profile, mission_data, flight_minutes=45, aircraft=aircraft)
+        save_profile(nickname, profile, profile_dir)
+
+def update_profiles_from_data(pilot_data, profile_dir=None):
+    """Update pilot profiles using parsed pilot data."""
+    if profile_dir is None:
+        profile_dir = Path("pilot_profiles")
+    
+    profile_dir.mkdir(exist_ok=True)
+
+    for nickname, mission_data in pilot_data.items():
+        aircraft = mission_data.get("aircraft", "Unknown")
+        profile = load_profile(nickname, profile_dir)
+        
+        # Use flight_minutes instead of flight_hours
+        flight_minutes = mission_data.get("flight_minutes", 0)
+        update_profile(profile, mission_data, flight_minutes, aircraft)
         save_profile(nickname, profile, profile_dir)
 
 def update_profiles(xml_path):

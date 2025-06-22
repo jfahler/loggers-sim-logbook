@@ -1,0 +1,61 @@
+{
+  "players": [
+    {
+      "callsign": "six",
+      "aliases": ["(HHC/229) Six"],
+      "notes": "Squadron leader"
+    },
+    {
+      "callsign": "machinegun817",
+      "aliases": ["Gunner 1 | Machinegun817"],
+      "notes": "Gunner callsign"
+    },
+    {
+      "callsign": "drunkbonsai",
+      "aliases": ["Drunk1 | DrunkBonsai"],
+      "notes": "Drunk callsign"
+    },
+    {
+      "callsign": "fatal",
+      "aliases": ["Fatal 2-1 | 101st"],
+      "notes": "Fatal callsign"
+    },
+    {
+      "callsign": "bones",
+      "aliases": ["Springfield 21 | Bones"],
+      "notes": "Bones callsign"
+    },
+    {
+      "callsign": "bullet",
+      "aliases": ["Bullet"],
+      "notes": "Bullet callsign"
+    }
+  ],
+  
+  "_template": {
+    "_comment": "Template for adding new players. Copy this structure and fill in the details:",
+    "_example": {
+      "callsign": "example_callsign",
+      "aliases": ["Example | Callsign", "Another Alias"],
+      "notes": "Brief description or notes about this player"
+    },
+    "_fields": {
+      "callsign": "The primary callsign/nickname for this player (used for AI filtering)",
+      "aliases": "Array of alternative names/aliases this player uses in-game",
+      "notes": "Optional notes about the player (squadron, role, etc.)"
+    },
+    "_usage": "This file is used by the AI filter to whitelist known real players. Add new players here to prevent them from being incorrectly filtered as AI."
+  },
+  
+  "_ai_filtering": {
+    "_comment": "How this file is used for AI filtering:",
+    "_description": "The AI filter checks pilot names against this whitelist. If a pilot name matches any callsign or alias in this list, they are automatically considered a real player and not filtered out as AI.",
+    "_process": [
+      "1. When processing XML files, the system extracts pilot names",
+      "2. Each pilot name is checked against the callsigns and aliases in this file",
+      "3. If there's a match, the pilot is marked as a real player",
+      "4. If no match is found, the AI filter applies pattern matching rules",
+      "5. This prevents false positives where real players are incorrectly filtered as AI"
+    ]
+  }
+} 

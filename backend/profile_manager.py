@@ -6,14 +6,19 @@ def load_profile(nickname, profile_dir):
     if not path.exists():
         return {
             "callsign": nickname,
-            "platform_hours": {"DCS": "0:00", "BMS": "0:00", "Total": "0:00"},
+            "nicknames": [nickname],
+            "profile_image": "",
+            "platform_hours": {"DCS": 0, "BMS": 0, "IL2": 0, "Total": 0},
             "aircraft_hours": {},
             "mission_summary": {
                 "logs_flown": 0, "aa_kills": 0, "aa_avg": 0.0, "ag_kills": 0, "ag_avg": 0.0,
                 "frat_kills": 0, "frat_avg": 0.0, "rtb": 0, "rtb_avg": 0.0,
-                "res": 0, "mia": 0, "kia": 0, "kia_avg": 0.0, "ctd": 0, "ctd_avg": 0.0
+                "ejections": 0, "ejections_avg": 0.0, "res": 0, "res_avg": 0.0,
+                "mia": 0, "mia_avg": 0.0, "kia": 0, "kia_avg": 0.0, 
+                "ctd": 0, "ctd_avg": 0.0
             },
-            "missions": []
+            "missions": [],
+            "notes": ""
         }
     with open(path, 'r') as f:
         return json.load(f)
@@ -31,15 +36,40 @@ def add_minutes(time_str, minutes):
 def update_profile(profile, mission_data, flight_minutes, aircraft):
     ms = profile["mission_summary"]
     ms["logs_flown"] += 1
-    for key in ["aa_kills", "ag_kills", "frat_kills", "rtb", "res", "mia", "kia", "ctd"]:
+    
+    # Update all mission statistics
+    for key in ["aa_kills", "ag_kills", "frat_kills", "rtb", "ejections", "res", "mia", "kia", "ctd"]:
         ms[key] += mission_data.get(key, 0)
         ms[f"{key.split('_')[0]}_avg"] = round(ms[key] / ms["logs_flown"], 2)
 
-    profile["platform_hours"]["DCS"] = add_minutes(profile["platform_hours"]["DCS"], flight_minutes)
-    profile["platform_hours"]["Total"] = add_minutes(profile["platform_hours"]["Total"], flight_minutes)
+    # Update platform hours based on detected platform (in minutes)
+    platform = mission_data.get("platform", "DCS")
+    if platform in profile["platform_hours"]:
+        profile["platform_hours"][platform] += flight_minutes
+    profile["platform_hours"]["Total"] += flight_minutes
 
-    if aircraft:
-        prev = profile["aircraft_hours"].get(aircraft, "0:00")
-        profile["aircraft_hours"][aircraft] = add_minutes(prev, flight_minutes)
+    # Update aircraft hours (in minutes)
+    if aircraft and aircraft != "Unknown":
+        if aircraft not in profile["aircraft_hours"]:
+            profile["aircraft_hours"][aircraft] = 0
+        profile["aircraft_hours"][aircraft] += flight_minutes
 
-    profile["missions"].append(mission_data)
+    # Update nicknames if new ones found
+    if "nicknames" in mission_data:
+        for nickname in mission_data["nicknames"]:
+            if nickname not in profile["nicknames"]:
+                profile["nicknames"].append(nickname)
+
+    # Add mission to history (convert flight_hours to flight_minutes)
+    mission_copy = mission_data.copy()
+    if "flight_hours" in mission_copy:
+        # Convert HH:MM string to minutes
+        flight_hours_str = mission_copy["flight_hours"]
+        if isinstance(flight_hours_str, str) and ":" in flight_hours_str:
+            hours, minutes = map(int, flight_hours_str.split(":"))
+            mission_copy["flight_minutes"] = hours * 60 + minutes
+        else:
+            mission_copy["flight_minutes"] = int(flight_hours_str) if flight_hours_str else 0
+        del mission_copy["flight_hours"]
+    
+    profile["missions"].append(mission_copy)

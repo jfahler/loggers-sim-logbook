@@ -1,0 +1,58 @@
+{
+  "callsign": "string - Primary callsign of the pilot",
+  "nicknames": ["array of strings - All known callsigns/nicknames for this pilot"],
+  "profile_image": "string - URL/path to pilot's profile image (jpg/png)",
+  "platform_hours": {
+    "DCS": "number - Total flight minutes in DCS World",
+    "BMS": "number - Total flight minutes in BMS", 
+    "IL2": "number - Total flight minutes in IL2",
+    "Total": "number - Combined total flight minutes across all platforms"
+  },
+  "aircraft_hours": {
+    "Aircraft Type": "number - Minutes flown in specific aircraft"
+  },
+  "mission_summary": {
+    "logs_flown": "number - Total number of missions/sorties",
+    "aa_kills": "number - Total air-to-air kills",
+    "aa_avg": "number - Average air-to-air kills per mission",
+    "ag_kills": "number - Total air-to-ground kills", 
+    "ag_avg": "number - Average air-to-ground kills per mission",
+    "frat_kills": "number - Total friendly fire (blue on blue) kills",
+    "frat_avg": "number - Average friendly fire kills per mission",
+    "rtb": "number - Total times landed/returned to base",
+    "rtb_avg": "number - Average RTB per mission",
+    "ejections": "number - Total times ejected (rescued)",
+    "ejections_avg": "number - Average ejections per mission",
+    "kia": "number - Total times killed in action",
+    "kia_avg": "number - Average KIA per mission",
+    "ctd": "number - Total crash to desktop incidents",
+    "ctd_avg": "number - Average CTD per mission",
+    "res": "number - Total times rescued",
+    "res_avg": "number - Average rescues per mission",
+    "mia": "number - Total missing in action",
+    "mia_avg": "number - Average MIA per mission"
+  },
+  "missions": [
+    {
+      "date": "string - Mission date (YYYY-MM-DD)",
+      "mission": "string - Mission name",
+      "flight_minutes": "number - Flight duration for this mission in minutes",
+      "aa_kills": "number - Air-to-air kills in this mission",
+      "ag_kills": "number - Air-to-ground kills in this mission", 
+      "frat_kills": "number - Friendly fire kills in this mission",
+      "rtb": "number - Times landed in this mission",
+      "ejections": "number - Times ejected in this mission",
+      "kia": "number - Times killed in this mission",
+      "ctd": "number - Crash to desktop in this mission",
+      "res": "number - Times rescued in this mission",
+      "mia": "number - Missing in action in this mission",
+      "platform": "string - Platform used (DCS/BMS/IL2)",
+      "aircraft": "string - Aircraft type flown",
+      "deaths": "number - Total deaths in this mission",
+      "sorties": "number - Number of sorties in this mission",
+      "total_kills": "number - Total kills (AA + AG) in this mission",
+      "kd_ratio": "string - Kill/death ratio for this mission"
+    }
+  ],
+  "notes": "string - Additional notes about this pilot profile"
+} 

@@ -39,9 +39,11 @@ export function Upload() {
     onSuccess: async (data) => {
       console.log('Upload mutation success:', data);
       
+      // Show enhanced success message with pilot information
+      const pilotCount = data.pilots_updated || 'unknown';
       toast({
-        title: "Success",
-        description: data.message,
+        title: "XML Processing Complete",
+        description: `Successfully processed ${pilotCount} pilot profiles with enhanced tracking including flight hours, kills, and platform statistics.`,
       });
       
       // Invalidate queries to refresh data

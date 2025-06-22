@@ -6,6 +6,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, Plane, Target, Skull, Clock, Send, AlertTriangle } from 'lucide-react';
 import api from '@/api';
 
+function formatMinutesToHHMM(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export function Pilots() {
   const { toast } = useToast();
 
@@ -53,16 +59,7 @@ export function Pilots() {
     },
   });
 
-  const formatDuration = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    } else {
-      return `${minutes}m`;
-    }
-  };
+  const formatDuration = (minutes: number) => formatMinutesToHHMM(minutes);
 
   const getKillDeathRatio = (aaKills: number, agKills: number, deaths: number) => {
     const totalKills = aaKills + agKills;

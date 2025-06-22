@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Plane, Users, Upload, BarChart3 } from 'lucide-react';
+import loggersLogo from '../../public/assets/loggers-logo.png';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: BarChart3 },
@@ -17,8 +18,8 @@ export function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-2">
-            <Plane className="h-8 w-8 text-blue-600" />
-            <h1 className="text-xl font-bold text-gray-900">DCS Pilot Logbook</h1>
+            <img src={loggersLogo} alt="Loggers Logo" className="h-8 w-8" />
+            <h1 className="text-xl font-bold text-gray-900">Loggers Logbook App</h1>
           </div>
           
           <div className="flex space-x-8">

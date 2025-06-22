@@ -7,7 +7,7 @@ import json
 from werkzeug.utils import secure_filename
 from generate_index import generate_index
 from xml_parser import parse_xml
-from update_profiles import update_profiles
+from update_profiles import update_profiles, update_profiles_from_data
 from webhook_helpers import send_pilot_stats, send_flight_summary
 from datetime import datetime
 from dotenv import load_dotenv
@@ -81,17 +81,21 @@ def upload_xml():
         logger.info(f"Processing XML file: {filepath}")
         parse_result = parse_xml(filepath)
         
-        # Clean up the uploaded file after processing
-        try:
-            os.remove(filepath)
-            logger.debug(f"Cleaned up temporary file: {filepath}")
-        except OSError as e:
-            logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
-        
         if parse_result.get('success', True):
             logger.info(f"XML parsing successful, updating profiles for {parse_result.get('pilots_count', 'unknown')} pilots")
-            update_profiles(filepath)
-            generate_index()
+            
+            # Update profiles with the parsed data
+            pilot_data = parse_result.get('pilot_data', {})
+            if pilot_data:
+                update_profiles_from_data(pilot_data)
+                generate_index()
+            
+            # Clean up the uploaded file after processing
+            try:
+                os.remove(filepath)
+                logger.debug(f"Cleaned up temporary file: {filepath}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
             
             return jsonify({
                 "status": "success",
@@ -99,6 +103,13 @@ def upload_xml():
                 "pilots_updated": parse_result.get('pilots_count', 'unknown')
             }), 200
         else:
+            # Clean up the uploaded file on error
+            try:
+                os.remove(filepath)
+                logger.debug(f"Cleaned up temporary file after error: {filepath}")
+            except OSError as e:
+                logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
+                
             error_msg = parse_result.get('error', 'Unknown error')
             logger.error(f"XML parsing failed: {error_msg}")
             return jsonify({
@@ -199,7 +210,7 @@ def parse_hhmm(value: str) -> int:
 def load_profiles() -> list:
     profiles = []
     for fname in os.listdir(PROFILE_DIR):
-        if not fname.endswith('.json') or fname == 'index.json':
+        if not fname.endswith('.json') or fname in ['index.json', 'template.json']:
             continue
         with open(os.path.join(PROFILE_DIR, fname)) as f:
             profiles.append(json.load(f))
@@ -215,18 +226,29 @@ def aggregate_pilots() -> list:
         else:
             cs, name = None, callsign
         summary = prof.get('mission_summary', {})
-        total_time = parse_hhmm(prof.get('platform_hours', {}).get('Total', '0:00')) * 60
+        
+        # Handle platform_hours as numbers (minutes) instead of HH:MM strings
+        platform_hours = prof.get('platform_hours', {})
+        total_time = platform_hours.get('Total', 0)  # Already in minutes
+        
         aircraft_hours = prof.get('aircraft_hours', {})
         fav_aircraft = None
         most_time = -1
         for air, val in aircraft_hours.items():
-            mins = parse_hhmm(val)
+            # Handle both string (HH:MM) and numeric (minutes) formats
+            if isinstance(val, str):
+                mins = parse_hhmm(val)
+            else:
+                mins = int(val) if val else 0
             if mins > most_time:
                 fav_aircraft = air
                 most_time = mins
 
         flights = summary.get('logs_flown', 0)
-        avg_duration = int(total_time / flights) if flights else 0
+        # Ensure both values are integers for division
+        total_time = int(total_time) if total_time else 0
+        flights = int(flights) if flights else 0
+        avg_duration = int(total_time / flights) if flights > 0 else 0
 
         pilots.append({
             'pilot': {
