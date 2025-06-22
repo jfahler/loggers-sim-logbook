@@ -6,6 +6,25 @@ import { useToast } from '@/hooks/use-toast';
 import { Users, Plane, Target, Skull, Clock, Send, AlertTriangle } from 'lucide-react';
 import api from '@/api';
 
+interface Pilot {
+  pilot: {
+    id: number;
+    name: string;
+    callsign: string | null;
+    createdAt: string;
+  };
+  totalFlights: number;
+  totalFlightTime: number;
+  averageFlightDuration: number;
+  totalAaKills: number;
+  totalAgKills: number;
+  totalFratKills: number;
+  totalRtbCount: number;
+  totalEjections: number;
+  totalDeaths: number;
+  favoriteAircraft: string | null;
+}
+
 function formatMinutesToHHMM(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -79,7 +98,7 @@ export function Pilots() {
       </div>
 
       <div className="grid gap-6">
-        {pilots?.pilots.map((pilot) => (
+        {pilots && pilots.pilots && pilots.pilots.map((pilot: Pilot) => (
           <Card key={pilot.pilot.id}>
             <CardHeader>
               <div className="flex justify-between items-start">
@@ -196,7 +215,7 @@ export function Pilots() {
         ))}
       </div>
 
-      {pilots?.pilots.length === 0 && (
+      {pilots && pilots.pilots && pilots.pilots.length === 0 && (
         <Card>
           <CardContent className="text-center py-8">
             <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
