@@ -7,6 +7,14 @@ import math
 import re
 import json
 import os
+from validation import (
+    validate_pilot_name, validate_mission_name, validate_aircraft_name,
+    validate_platform, validate_numeric_value, sanitize_string
+)
+from error_handling import (
+    APIError, ErrorCodes, log_operation_start, log_operation_success,
+    log_operation_failure, safe_json_save, safe_json_read
+)
 
 # Load player profiles for AI filtering
 def load_player_profiles():
@@ -52,21 +60,37 @@ def is_known_player(pilot_name: str) -> bool:
 
 def parse_xml(filepath: str) -> dict:
     """Main entry point for XML parsing - returns success/error status"""
+    operation = "xml_parse"
+    
     try:
+        log_operation_start(operation, {"file_path": filepath})
         print(f"Parsing XML file at: {filepath}")
         
         # Basic file validation
         if not Path(filepath).exists():
-            return {"success": False, "error": "File not found"}
+            raise APIError(
+                error_code=ErrorCodes.FILE_NOT_FOUND,
+                message="File not found",
+                status_code=404
+            )
         
         if not filepath.lower().endswith('.xml'):
-            return {"success": False, "error": "Not an XML file"}
+            raise APIError(
+                error_code=ErrorCodes.FILE_INVALID_TYPE,
+                message="Not an XML file",
+                status_code=400
+            )
         
         # Parse the Tacview XML
         pilot_data = parse_tacview_xml(filepath)
         
         # Check if this was a duplicate mission
         if pilot_data and pilot_data.get("duplicate"):
+            log_operation_success(operation, {
+                "duplicate": True,
+                "mission_name": pilot_data['mission_name'],
+                "mission_date": pilot_data['mission_date']
+            })
             return {
                 "success": True,
                 "duplicate": True,
@@ -76,7 +100,16 @@ def parse_xml(filepath: str) -> dict:
             }
         
         if not pilot_data:
-            return {"success": False, "error": "No pilot data found in XML"}
+            raise APIError(
+                error_code=ErrorCodes.DATA_PROCESSING_ERROR,
+                message="No pilot data found in XML",
+                status_code=400
+            )
+        
+        log_operation_success(operation, {
+            "pilots_count": len(pilot_data),
+            "file_path": filepath
+        })
         
         return {
             "success": True, 
@@ -84,10 +117,23 @@ def parse_xml(filepath: str) -> dict:
             "pilot_data": pilot_data
         }
         
+    except APIError:
+        # Re-raise API errors
+        raise
     except ET.ParseError as e:
-        return {"success": False, "error": f"XML parsing error: {str(e)}"}
+        log_operation_failure(operation, e, {"file_path": filepath})
+        raise APIError(
+            error_code=ErrorCodes.XML_PARSE_ERROR,
+            message=f"XML parsing error: {str(e)}",
+            status_code=400
+        )
     except Exception as e:
-        return {"success": False, "error": f"Unexpected error: {str(e)}"}
+        log_operation_failure(operation, e, {"file_path": filepath})
+        raise APIError(
+            error_code=ErrorCodes.DATA_PROCESSING_ERROR,
+            message=f"Unexpected error: {str(e)}",
+            status_code=500
+        )
 
 def parse_tacview_xml(xml_path: str) -> dict:
     """Parse Tacview XML and extract pilot mission data"""
@@ -222,9 +268,27 @@ def process_event(event, pilot_missions: dict, ground_types: set, pilot_position
     aircraft = primary.findtext("Name", default="Unknown")
     group = primary.findtext("Group", default="")
     
-    # Skip if no pilot identified or not a player client
+    # Validate and sanitize pilot name
     if not pilot or pilot.lower() == "unknown":
         return
+    
+    # Validate pilot name
+    is_valid, error = validate_pilot_name(pilot)
+    if not is_valid:
+        print(f"Invalid pilot name '{pilot}': {error}")
+        return
+    
+    # Sanitize pilot name
+    pilot = sanitize_string(pilot, 100)
+    
+    # Validate aircraft name
+    is_valid, error = validate_aircraft_name(aircraft)
+    if not is_valid:
+        print(f"Invalid aircraft name '{aircraft}': {error}")
+        aircraft = "Unknown"
+    
+    # Sanitize aircraft name
+    aircraft = sanitize_string(aircraft, 100)
     
     # Debug: Log all pilots being checked
     print(f"Checking pilot: '{pilot}' (aircraft: {aircraft}, group: {group})")
@@ -238,6 +302,12 @@ def process_event(event, pilot_missions: dict, ground_types: set, pilot_position
     
     # Resolve nickname using fuzzy matching
     nickname = resolve_fuzzy_nickname(pilot)
+    
+    # Validate nickname
+    is_valid, error = validate_pilot_name(nickname)
+    if not is_valid:
+        print(f"Invalid nickname '{nickname}': {error}")
+        return
     
     # Track all nicknames for this pilot
     if pilot not in pilot_missions[nickname]["nicknames"]:
@@ -302,10 +372,15 @@ def extract_mission_name(root, xml_path: str) -> str:
     if mission_elem is not None:
         name = mission_elem.get("name") or mission_elem.text
         if name:
-            return name.strip()
+            name = name.strip()
+            # Validate mission name
+            is_valid, error = validate_mission_name(name)
+            if is_valid:
+                return sanitize_string(name, 200)
     
     # Fall back to filename
-    return Path(xml_path).stem
+    filename = Path(xml_path).stem
+    return sanitize_string(filename, 200)
 
 def extract_mission_date(root) -> str:
     """Extract mission date from XML"""
@@ -362,32 +437,43 @@ def detect_platform(root) -> str:
     
     # Check generator field
     if "dcs" in generator:
-        return "DCS"
+        platform = "DCS"
     elif "bms" in generator or "falcon" in generator:
-        return "BMS"
+        platform = "BMS"
     elif "il2" in generator or "il-2" in generator or "sturmovik" in generator:
-        return "IL2"
+        platform = "IL2"
     elif "tacview" in generator:
-        return "Tacview"  # Generic
+        platform = "Tacview"  # Generic
+    else:
+        # Check source field
+        if "dcs" in source:
+            platform = "DCS"
+        elif "bms" in source or "falcon" in source:
+            platform = "BMS"
+        elif "il2" in source or "il-2" in source or "sturmovik" in source:
+            platform = "IL2"
+        else:
+            # Check for DCS-specific elements
+            if root.find(".//Mission") is not None:
+                mission_elem = root.find(".//Mission")
+                if mission_elem is not None:
+                    title = mission_elem.findtext("Title", "").lower()
+                    if any(keyword in title for keyword in ["dcs", "digital combat simulator"]):
+                        platform = "DCS"
+                    else:
+                        platform = "DCS"  # Default
+                else:
+                    platform = "DCS"  # Default
+            else:
+                platform = "DCS"  # Default
     
-    # Check source field
-    if "dcs" in source:
-        return "DCS"
-    elif "bms" in source or "falcon" in source:
-        return "BMS"
-    elif "il2" in source or "il-2" in source or "sturmovik" in source:
-        return "IL2"
+    # Validate platform
+    is_valid, error = validate_platform(platform)
+    if not is_valid:
+        print(f"Invalid platform '{platform}': {error}, defaulting to DCS")
+        platform = "DCS"
     
-    # Check for DCS-specific elements
-    if root.find(".//Mission") is not None:
-        mission_elem = root.find(".//Mission")
-        if mission_elem is not None:
-            title = mission_elem.findtext("Title", "").lower()
-            if any(keyword in title for keyword in ["dcs", "digital combat simulator"]):
-                return "DCS"
-    
-    # Default to DCS if we can't determine
-    return "DCS"
+    return platform
 
 def format_duration_from_seconds(seconds: float) -> str:
     """Convert seconds to H:MM format"""
@@ -400,6 +486,45 @@ def finalize_pilot_data(pilot_missions: dict) -> dict:
     finalized = {}
     
     for nickname, data in pilot_missions.items():
+        # Validate pilot data structure
+        try:
+            # Validate numeric fields
+            numeric_fields = ['aa_kills', 'ag_kills', 'frat_kills', 'rtb', 'ejections', 'deaths', 'flight_minutes']
+            for field in numeric_fields:
+                if field in data:
+                    is_valid, error = validate_numeric_value(data[field], field, min_val=0, max_val=10000)
+                    if not is_valid:
+                        print(f"Invalid {field} for {nickname}: {error}")
+                        data[field] = 0
+            
+            # Validate string fields
+            if 'mission' in data:
+                is_valid, error = validate_mission_name(data['mission'])
+                if not is_valid:
+                    print(f"Invalid mission name for {nickname}: {error}")
+                    data['mission'] = "Unknown Mission"
+            
+            if 'aircraft' in data:
+                is_valid, error = validate_aircraft_name(data['aircraft'])
+                if not is_valid:
+                    print(f"Invalid aircraft for {nickname}: {error}")
+                    data['aircraft'] = "Unknown"
+            
+            if 'platform' in data:
+                is_valid, error = validate_platform(data['platform'])
+                if not is_valid:
+                    print(f"Invalid platform for {nickname}: {error}")
+                    data['platform'] = "DCS"
+            
+            # Sanitize string fields
+            for field in ['mission', 'aircraft', 'platform']:
+                if field in data:
+                    data[field] = sanitize_string(data[field], 200)
+            
+        except Exception as e:
+            print(f"Error validating pilot data for {nickname}: {e}")
+            continue
+        
         # Skip pilots with no activity
         total_activity = (data["aa_kills"] + data["ag_kills"] + 
                          data["frat_kills"] + data["rtb"] + data["kia"])
@@ -656,9 +781,8 @@ def load_squadron_callsigns() -> list:
     try:
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'squadron_callsigns.json')
         if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                data = json.load(f)
-                return data.get('callsigns', [])
+            data = safe_json_read(config_path)
+            return data.get('callsigns', [])
     except Exception as e:
         print(f"Warning: Could not load squadron callsigns: {e}")
     
@@ -671,8 +795,7 @@ def save_squadron_callsigns(callsigns: list):
         os.makedirs(config_dir, exist_ok=True)
         
         config_path = os.path.join(config_dir, 'squadron_callsigns.json')
-        with open(config_path, 'w') as f:
-            json.dump({'callsigns': callsigns}, f, indent=2)
+        safe_json_save(config_path, {'callsigns': callsigns})
         
         return True
     except Exception as e:
@@ -684,10 +807,9 @@ def is_mission_already_processed(mission_name: str, mission_date: str) -> bool:
     try:
         processed_file = os.path.join(os.path.dirname(__file__), 'config', 'processed_missions.json')
         if os.path.exists(processed_file):
-            with open(processed_file, 'r') as f:
-                processed_missions = json.load(f)
-                mission_key = f"{mission_name}_{mission_date}"
-                return mission_key in processed_missions
+            processed_missions = safe_json_read(processed_file)
+            mission_key = f"{mission_name}_{mission_date}"
+            return mission_key in processed_missions
     except Exception as e:
         print(f"Warning: Could not check processed missions: {e}")
     
@@ -704,8 +826,7 @@ def mark_mission_as_processed(mission_name: str, mission_date: str):
         # Load existing processed missions
         processed_missions = {}
         if os.path.exists(processed_file):
-            with open(processed_file, 'r') as f:
-                processed_missions = json.load(f)
+            processed_missions = safe_json_read(processed_file)
         
         # Add this mission
         mission_key = f"{mission_name}_{mission_date}"
@@ -723,8 +844,7 @@ def mark_mission_as_processed(mission_name: str, mission_date: str):
             processed_missions = dict(sorted_missions[-100:])
         
         # Save back to file
-        with open(processed_file, 'w') as f:
-            json.dump(processed_missions, f, indent=2)
+        safe_json_save(processed_file, processed_missions)
             
     except Exception as e:
         print(f"Warning: Could not mark mission as processed: {e}")

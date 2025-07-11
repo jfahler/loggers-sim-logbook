@@ -2,8 +2,12 @@ import os
 import json
 import logging
 from datetime import datetime
+import uuid
 
 from flask import Flask, request, jsonify, send_from_directory
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
@@ -11,6 +15,24 @@ from xml_parser import parse_xml, load_squadron_callsigns, save_squadron_callsig
 from update_profiles import update_profiles_from_data
 from generate_index import generate_index
 from webhook_helpers import send_pilot_stats, send_flight_summary
+from dcs_server_bot import (
+    process_userstats_webhook, process_missionstats_webhook,
+    parse_userstats_data, parse_missionstats_data,
+    verify_webhook_signature, DCS_BOT_ENABLED
+)
+from validation import (
+    validate_file_upload, validate_xml_content, validate_discord_data,
+    validate_callsigns_list, sanitize_string, ValidationError
+)
+from error_handling import (
+    APIError, ErrorCodes, create_error_response, handle_api_error,
+    log_operation_start, log_operation_success, log_operation_failure,
+    safe_file_delete, validate_required_fields, error_handler
+)
+from security_config import (
+    get_rate_limit, get_cors_origins, get_max_file_size, get_max_json_size,
+    get_security_headers, validate_file_extension, validate_mime_type
+)
 
 # Load environment variables
 load_dotenv()
@@ -18,7 +40,11 @@ load_dotenv()
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('app.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -27,7 +53,14 @@ app = Flask(__name__)
 # Configuration from environment variables
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), 'pilot_profiles')
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
-MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB default
+
+# Security configuration
+ALLOWED_ORIGINS = get_cors_origins()
+RATE_LIMIT_DEFAULT = get_rate_limit('default')
+RATE_LIMIT_UPLOAD = get_rate_limit('upload')
+RATE_LIMIT_DISCORD = get_rate_limit('discord')
+MAX_CONTENT_LENGTH = get_max_file_size()
+MAX_JSON_SIZE = get_max_json_size()
 
 # Ensure directories exist
 os.makedirs(PROFILE_DIR, exist_ok=True)
@@ -35,11 +68,64 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 
+# Initialize rate limiter
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=[RATE_LIMIT_DEFAULT],
+    storage_uri="memory://"
+)
+
+# Configure CORS
+CORS(app, 
+     origins=ALLOWED_ORIGINS,
+     methods=['GET', 'POST', 'OPTIONS'],
+     allow_headers=['Content-Type', 'Authorization'],
+     supports_credentials=True,
+     max_age=3600)
+
+# Add security headers middleware
+@app.after_request
+def add_security_headers(response):
+    """Add security headers to all responses"""
+    security_headers = get_security_headers()
+    for header, value in security_headers.items():
+        response.headers[header] = value
+    return response
+
+def validate_request_size():
+    """Validate request size for JSON requests"""
+    if request.is_json:
+        content_length = request.content_length
+        if content_length and content_length > MAX_JSON_SIZE:
+            raise APIError(
+                error_code=ErrorCodes.FILE_TOO_LARGE,
+                message=f"Request too large. Maximum JSON size is {MAX_JSON_SIZE // (1024*1024)}MB",
+                status_code=413
+            )
+
+def validate_file_size(file):
+    """Validate file size for uploads"""
+    if file:
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+        
+        if file_size > MAX_CONTENT_LENGTH:
+            raise APIError(
+                error_code=ErrorCodes.FILE_TOO_LARGE,
+                message=f"File too large. Maximum size is {MAX_CONTENT_LENGTH // (1024*1024)}MB",
+                status_code=413
+            )
+
 # Initialize pilot index at startup
 try:
+    log_operation_start("pilot_index_initialization")
     generate_index()
+    log_operation_success("pilot_index_initialization")
     logger.info("Pilot index initialized successfully")
 except Exception as e:
+    log_operation_failure("pilot_index_initialization", e)
     logger.error(f"Failed to initialize pilot index: {e}")
 
 @app.route('/')
@@ -52,23 +138,36 @@ def root():
     })
 
 @app.route('/upload_xml', methods=['POST'])
+@limiter.limit(RATE_LIMIT_UPLOAD)
 def upload_xml():
+    request_id = str(uuid.uuid4())
+    operation = "xml_upload"
+    
     try:
-        logger.info("Received XML upload request")
+        log_operation_start(operation, {"request_id": request_id})
+        logger.info(f"Received XML upload request: {request_id}")
         
+        # Validate request has file
         if 'file' not in request.files:
-            logger.warning("No file uploaded in request")
-            return jsonify({"error": "No file uploaded"}), 400
+            raise APIError(
+                error_code=ErrorCodes.FILE_UPLOAD_FAILED,
+                message="No file uploaded",
+                status_code=400
+            )
 
         file = request.files['file']
         
-        if file.filename == '':
-            logger.warning("Empty filename in upload request")
-            return jsonify({"error": "No file selected"}), 400
-
-        if not file.filename or not file.filename.lower().endswith('.xml'):
-            logger.warning(f"Invalid file type uploaded: {file.filename}")
-            return jsonify({"error": "Only XML files are allowed"}), 400
+        # Validate file size
+        validate_file_size(file)
+        
+        # Validate file upload
+        is_valid, error_msg = validate_file_upload(file)
+        if not is_valid:
+            raise APIError(
+                error_code=ErrorCodes.FILE_INVALID_TYPE,
+                message=error_msg,
+                status_code=400
+            )
 
         # Use secure filename to prevent path traversal
         filename = secure_filename(file.filename or '')
@@ -77,12 +176,29 @@ def upload_xml():
         logger.info(f"Saving uploaded file: {filename}")
         file.save(filepath)
 
+        # Validate XML content structure
+        is_valid, error_msg = validate_xml_content(filepath)
+        if not is_valid:
+            # Clean up the uploaded file on validation error
+            try:
+                safe_file_delete(filepath)
+                logger.debug(f"Cleaned up temporary file after validation error: {filepath}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary file {filepath}: {cleanup_error}")
+            
+            raise APIError(
+                error_code=ErrorCodes.XML_INVALID_STRUCTURE,
+                message=error_msg,
+                status_code=400
+            )
+
         # Process the XML
         logger.info(f"Processing XML file: {filepath}")
         parse_result = parse_xml(filepath)
         
         if parse_result.get('success', True):
-            logger.info(f"XML parsing successful, updating profiles for {parse_result.get('pilots_count', 'unknown')} pilots")
+            pilots_count = parse_result.get('pilots_count', 'unknown')
+            logger.info(f"XML parsing successful, updating profiles for {pilots_count} pilots")
             
             # Update profiles with the parsed data
             pilot_data = parse_result.get('pilot_data', {})
@@ -92,88 +208,354 @@ def upload_xml():
             
             # Clean up the uploaded file after processing
             try:
-                os.remove(filepath)
+                safe_file_delete(filepath)
                 logger.debug(f"Cleaned up temporary file: {filepath}")
-            except OSError as e:
-                logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary file {filepath}: {cleanup_error}")
+            
+            log_operation_success(operation, {
+                "request_id": request_id,
+                "pilots_updated": pilots_count
+            })
             
             return jsonify({
-                "status": "success",
+                "success": True,
                 "message": "Tacview XML processed successfully",
-                "pilots_updated": parse_result.get('pilots_count', 'unknown')
+                "pilots_updated": pilots_count,
+                "request_id": request_id
             }), 200
         else:
             # Clean up the uploaded file on error
             try:
-                os.remove(filepath)
+                safe_file_delete(filepath)
                 logger.debug(f"Cleaned up temporary file after error: {filepath}")
-            except OSError as e:
-                logger.warning(f"Failed to clean up temporary file {filepath}: {e}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary file {filepath}: {cleanup_error}")
                 
             error_msg = parse_result.get('error', 'Unknown error')
-            logger.error(f"XML parsing failed: {error_msg}")
-            return jsonify({
-                "status": "error", 
-                "message": f"XML parsing failed: {error_msg}"
-            }), 400
+            raise APIError(
+                error_code=ErrorCodes.XML_PARSE_ERROR,
+                message=f"XML parsing failed: {error_msg}",
+                status_code=400
+            )
             
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
     except Exception as e:
-        logger.error(f"Upload processing failed: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": f"Upload processing failed: {str(e)}"
-        }), 500
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.FILE_PROCESSING_FAILED,
+            message=f"Upload processing failed: {str(e)}",
+            status_code=500
+        )
 
 @app.route('/discord/pilot-stats', methods=['POST'])
+@limiter.limit(RATE_LIMIT_DISCORD)
 def post_pilot_stats():
+    request_id = str(uuid.uuid4())
+    operation = "discord_pilot_stats"
+    
     try:
+        log_operation_start(operation, {"request_id": request_id})
+        
+        # Validate request size
+        validate_request_size()
+        
         if not request.is_json:
-            return jsonify({"error": "Content-Type must be application/json"}), 400
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="Content-Type must be application/json",
+                status_code=400
+            )
             
         data = request.get_json()
         
         if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
-            
-        # Basic validation
-        if 'pilotName' not in data:
-            return jsonify({"error": "pilotName is required"}), 400
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="No JSON data provided",
+                status_code=400
+            )
+        
+        # Validate required fields
+        validate_required_fields(data, ['pilotName'])
+        
+        # Validate Discord data
+        is_valid, error_msg = validate_discord_data(data)
+        if not is_valid:
+            raise APIError(
+                error_code=ErrorCodes.DISCORD_INVALID_DATA,
+                message=error_msg,
+                status_code=400
+            )
             
         result = send_pilot_stats(data)
-        status_code = 200 if result.get('success') else 400
         
-        return jsonify(result), status_code
+        if result.get('success'):
+            log_operation_success(operation, {"request_id": request_id})
+            return jsonify({
+                "success": True,
+                "message": result.get('message', 'Pilot stats sent successfully'),
+                "request_id": request_id
+            }), 200
+        else:
+            raise APIError(
+                error_code=ErrorCodes.DISCORD_WEBHOOK_ERROR,
+                message=result.get('message', 'Failed to send pilot stats'),
+                status_code=400
+            )
         
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
     except Exception as e:
-        return jsonify({
-            "success": False, 
-            "message": f"Error processing request: {str(e)}"
-        }), 500
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.DISCORD_WEBHOOK_ERROR,
+            message=f"Error processing request: {str(e)}",
+            status_code=500
+        )
 
 @app.route('/discord/flight-summary', methods=['POST'])
+@limiter.limit(RATE_LIMIT_DISCORD)
 def post_flight_summary():
+    request_id = str(uuid.uuid4())
+    operation = "discord_flight_summary"
+    
     try:
+        log_operation_start(operation, {"request_id": request_id})
+        
+        # Validate request size
+        validate_request_size()
+        
         if not request.is_json:
-            return jsonify({"error": "Content-Type must be application/json"}), 400
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="Content-Type must be application/json",
+                status_code=400
+            )
             
         data = request.get_json()
         
         if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
-            
-        if 'pilotName' not in data:
-            return jsonify({"error": "pilotName is required"}), 400
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="No JSON data provided",
+                status_code=400
+            )
+        
+        # Validate required fields
+        validate_required_fields(data, ['pilotName'])
+        
+        # Validate Discord data
+        is_valid, error_msg = validate_discord_data(data)
+        if not is_valid:
+            raise APIError(
+                error_code=ErrorCodes.DISCORD_INVALID_DATA,
+                message=error_msg,
+                status_code=400
+            )
             
         result = send_flight_summary(data)
-        status_code = 200 if result.get('success') else 400
         
-        return jsonify(result), status_code
+        if result.get('success'):
+            log_operation_success(operation, {"request_id": request_id})
+            return jsonify({
+                "success": True,
+                "message": result.get('message', 'Flight summary sent successfully'),
+                "request_id": request_id
+            }), 200
+        else:
+            raise APIError(
+                error_code=ErrorCodes.DISCORD_WEBHOOK_ERROR,
+                message=result.get('message', 'Failed to send flight summary'),
+                status_code=400
+            )
         
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
     except Exception as e:
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.DISCORD_WEBHOOK_ERROR,
+            message=f"Error processing request: {str(e)}",
+            status_code=500
+        )
+
+# DCS Server Bot Integration Endpoints
+
+@app.route('/dcs/userstats', methods=['POST'])
+@limiter.limit(RATE_LIMIT_DISCORD)
+def dcs_userstats_webhook():
+    """Handle USERSTATS webhook from DCS Server Bot"""
+    request_id = str(uuid.uuid4())
+    operation = "dcs_userstats_webhook"
+    
+    try:
+        log_operation_start(operation, {"request_id": request_id})
+        
+        # Check if DCS Bot integration is enabled
+        if not DCS_BOT_ENABLED:
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_DISABLED,
+                message="DCS Server Bot integration is disabled",
+                status_code=503
+            )
+        
+        # Validate request size
+        validate_request_size()
+        
+        if not request.is_json:
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="Content-Type must be application/json",
+                status_code=400
+            )
+        
+        # Verify webhook signature if configured
+        signature = request.headers.get('X-DCS-Signature', '')
+        if not verify_webhook_signature(request.get_data(as_text=True), signature):
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_SIGNATURE_ERROR,
+                message="Webhook signature verification failed",
+                status_code=401
+            )
+        
+        data = request.get_json()
+        
+        if not data:
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="No JSON data provided",
+                status_code=400
+            )
+        
+        # Parse and validate USERSTATS data
+        try:
+            userstats = parse_userstats_data(data)
+        except ValidationError as e:
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_INVALID_DATA,
+                message=str(e),
+                status_code=400
+            )
+        
+        # Process the USERSTATS data
+        result = process_userstats_webhook(userstats)
+        
+        log_operation_success(operation, {
+            "request_id": request_id,
+            "player_name": userstats.player_name,
+            "mission_name": userstats.mission_name
+        })
+        
         return jsonify({
-            "success": False, 
-            "message": f"Error processing request: {str(e)}"
-        }), 500
+            "success": True,
+            "message": result.get("message", "USERSTATS processed successfully"),
+            "request_id": request_id,
+            "player_name": userstats.player_name,
+            "total_kills": result.get("total_kills", 0),
+            "flight_time": result.get("flight_time", 0)
+        }), 200
+        
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
+    except Exception as e:
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.DCS_BOT_WEBHOOK_ERROR,
+            message=f"Error processing USERSTATS webhook: {str(e)}",
+            status_code=500
+        )
+
+@app.route('/dcs/missionstats', methods=['POST'])
+@limiter.limit(RATE_LIMIT_DISCORD)
+def dcs_missionstats_webhook():
+    """Handle MISSIONSTATS webhook from DCS Server Bot"""
+    request_id = str(uuid.uuid4())
+    operation = "dcs_missionstats_webhook"
+    
+    try:
+        log_operation_start(operation, {"request_id": request_id})
+        
+        # Check if DCS Bot integration is enabled
+        if not DCS_BOT_ENABLED:
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_DISABLED,
+                message="DCS Server Bot integration is disabled",
+                status_code=503
+            )
+        
+        # Validate request size
+        validate_request_size()
+        
+        if not request.is_json:
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="Content-Type must be application/json",
+                status_code=400
+            )
+        
+        # Verify webhook signature if configured
+        signature = request.headers.get('X-DCS-Signature', '')
+        if not verify_webhook_signature(request.get_data(as_text=True), signature):
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_SIGNATURE_ERROR,
+                message="Webhook signature verification failed",
+                status_code=401
+            )
+        
+        data = request.get_json()
+        
+        if not data:
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="No JSON data provided",
+                status_code=400
+            )
+        
+        # Parse and validate MISSIONSTATS data
+        try:
+            missionstats = parse_missionstats_data(data)
+        except ValidationError as e:
+            raise APIError(
+                error_code=ErrorCodes.DCS_BOT_INVALID_DATA,
+                message=str(e),
+                status_code=400
+            )
+        
+        # Process the MISSIONSTATS data
+        result = process_missionstats_webhook(missionstats)
+        
+        log_operation_success(operation, {
+            "request_id": request_id,
+            "mission_name": missionstats.mission_name,
+            "players_count": len(missionstats.players)
+        })
+        
+        return jsonify({
+            "success": True,
+            "message": result.get("message", "MISSIONSTATS processed successfully"),
+            "request_id": request_id,
+            "mission_name": missionstats.mission_name,
+            "players_count": result.get("players_count", 0),
+            "duration": result.get("duration", 0),
+            "mission_file": result.get("mission_file", "")
+        }), 200
+        
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
+    except Exception as e:
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.DCS_BOT_WEBHOOK_ERROR,
+            message=f"Error processing MISSIONSTATS webhook: {str(e)}",
+            status_code=500
+        )
 
 # Health check endpoint for monitoring
 @app.route('/health')
@@ -181,17 +563,87 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
-        "discord_configured": bool(os.getenv("DISCORD_WEBHOOK_URL"))
+        "discord_configured": bool(os.getenv("DISCORD_WEBHOOK_URL")),
+        "dcs_bot_enabled": DCS_BOT_ENABLED,
+        "dcs_bot_webhook_configured": bool(os.getenv("DCS_BOT_WEBHOOK_SECRET"))
+    })
+
+# Error statistics endpoint for monitoring
+@app.route('/error-stats')
+def error_stats():
+    """Get error statistics for monitoring"""
+    return jsonify({
+        "success": True,
+        "error_stats": error_handler.get_error_stats(),
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+# Security configuration endpoint
+@app.route('/security-info')
+def security_info():
+    """Get security configuration information"""
+    from security_config import get_security_summary
+    return jsonify({
+        "success": True,
+        "security_config": get_security_summary(),
+        "timestamp": datetime.utcnow().isoformat()
     })
 
 # Error handlers
+@app.errorhandler(APIError)
+def handle_api_error(error):
+    """Handle custom API errors"""
+    return handle_api_error(error)
+
 @app.errorhandler(413)
 def too_large(e):
-    return jsonify({"error": "File too large. Maximum size is 16MB."}), 413
+    """Handle file too large errors"""
+    response = create_error_response(
+        error_code=ErrorCodes.FILE_TOO_LARGE,
+        message="File too large. Maximum size is 50MB.",
+        status_code=413
+    )
+    return jsonify(response), 413
+
+@app.errorhandler(429)
+def rate_limit_exceeded(e):
+    """Handle rate limit exceeded errors"""
+    response = create_error_response(
+        error_code=ErrorCodes.RATE_LIMIT_ERROR,
+        message="Rate limit exceeded. Please try again later.",
+        status_code=429
+    )
+    return jsonify(response), 429
 
 @app.errorhandler(500)
 def internal_error(e):
-    return jsonify({"error": "Internal server error occurred."}), 500
+    """Handle internal server errors"""
+    response = create_error_response(
+        error_code=ErrorCodes.INTERNAL_ERROR,
+        message="Internal server error occurred.",
+        status_code=500
+    )
+    return jsonify(response), 500
+
+@app.errorhandler(404)
+def not_found(e):
+    """Handle not found errors"""
+    response = create_error_response(
+        error_code=ErrorCodes.FILE_NOT_FOUND,
+        message="Resource not found.",
+        status_code=404
+    )
+    return jsonify(response), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    """Handle method not allowed errors"""
+    response = create_error_response(
+        error_code=ErrorCodes.INVALID_INPUT,
+        message="Method not allowed.",
+        status_code=405
+    )
+    return jsonify(response), 405
 
 @app.route('/pilot_profiles/<path:filename>')
 def serve_profile(filename):
@@ -302,11 +754,13 @@ def collect_flights() -> list:
 
 
 @app.route('/pilots')
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def list_pilots():
     return jsonify({'pilots': aggregate_pilots()})
 
 
 @app.route('/flights')
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def list_flights():
     limit = int(request.args.get('limit', 20))
     offset = int(request.args.get('offset', 0))
@@ -315,6 +769,7 @@ def list_flights():
 
 
 @app.route('/flights/<int:flight_id>')
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_flight(flight_id: int):
     for flight in collect_flights():
         if flight['id'] == flight_id:
@@ -323,6 +778,7 @@ def get_flight(flight_id: int):
 
 
 @app.route('/squadron-callsigns', methods=['GET'])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def get_squadron_callsigns():
     """Get current squadron callsigns"""
     callsigns = load_squadron_callsigns()
@@ -330,43 +786,78 @@ def get_squadron_callsigns():
 
 
 @app.route('/squadron-callsigns', methods=['POST'])
+@limiter.limit(RATE_LIMIT_DEFAULT)
 def update_squadron_callsigns():
     """Update squadron callsigns"""
+    request_id = str(uuid.uuid4())
+    operation = "update_squadron_callsigns"
+    
     try:
+        log_operation_start(operation, {"request_id": request_id})
+        
+        # Validate request size
+        validate_request_size()
+        
         if not request.is_json:
-            return jsonify({"error": "Content-Type must be application/json"}), 400
+            raise APIError(
+                error_code=ErrorCodes.INVALID_INPUT,
+                message="Content-Type must be application/json",
+                status_code=400
+            )
             
         data = request.get_json()
         
         if not data or 'callsigns' not in data:
-            return jsonify({"error": "callsigns array is required"}), 400
+            raise APIError(
+                error_code=ErrorCodes.MISSING_REQUIRED_FIELD,
+                message="callsigns array is required",
+                field="callsigns",
+                status_code=400
+            )
         
         callsigns = data['callsigns']
         
-        if not isinstance(callsigns, list):
-            return jsonify({"error": "callsigns must be an array"}), 400
+        # Validate callsigns list
+        is_valid, error_msg = validate_callsigns_list(callsigns)
+        if not is_valid:
+            raise APIError(
+                error_code=ErrorCodes.VALIDATION_ERROR,
+                message=error_msg,
+                status_code=400
+            )
         
-        # Validate callsigns (basic validation)
-        valid_callsigns = []
-        for callsign in callsigns:
-            if isinstance(callsign, str) and callsign.strip():
-                valid_callsigns.append(callsign.strip())
+        # Sanitize callsigns
+        valid_callsigns = [sanitize_string(callsign.strip()) for callsign in callsigns if callsign.strip()]
         
         # Save to config file
         if save_squadron_callsigns(valid_callsigns):
+            log_operation_success(operation, {
+                "request_id": request_id,
+                "callsigns_count": len(valid_callsigns)
+            })
             return jsonify({
                 "success": True,
                 "message": f"Updated squadron callsigns: {', '.join(valid_callsigns)}",
-                "callsigns": valid_callsigns
+                "callsigns": valid_callsigns,
+                "request_id": request_id
             })
         else:
-            return jsonify({"error": "Failed to save squadron callsigns"}), 500
+            raise APIError(
+                error_code=ErrorCodes.CONFIG_ERROR,
+                message="Failed to save squadron callsigns",
+                status_code=500
+            )
             
+    except APIError:
+        # Re-raise API errors to be handled by error handler
+        raise
     except Exception as e:
-        return jsonify({
-            "success": False, 
-            "message": f"Error updating squadron callsigns: {str(e)}"
-        }), 500
+        log_operation_failure(operation, e, {"request_id": request_id})
+        raise APIError(
+            error_code=ErrorCodes.CONFIG_ERROR,
+            message=f"Error updating squadron callsigns: {str(e)}",
+            status_code=500
+        )
 
 
 if __name__ == '__main__':

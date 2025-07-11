@@ -110,9 +110,25 @@ FLASK_DEBUG=False
 # Discord Webhook (optional)
 DISCORD_WEBHOOK_URL=your_discord_webhook_url_here
 
+# DCS Server Bot Integration (optional)
+DCS_BOT_ENABLED=false
+DCS_BOT_WEBHOOK_SECRET=your_webhook_secret_here
+
 # File Upload Configuration
-MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
+MAX_CONTENT_LENGTH=52428800  # 50MB in bytes
 ```
+
+### Input Validation
+
+The application includes comprehensive input validation for security and data integrity:
+
+- **File Upload Validation**: File type, size, and content validation
+- **XML Content Validation**: Structure and security validation for Tacview files
+- **String Field Validation**: Length limits and character restrictions
+- **Data Structure Validation**: Complete data structure validation
+- **String Sanitization**: Removal of dangerous characters
+
+See `backend/VALIDATION_README.md` for detailed documentation.
 
 ## 📊 Features
 
@@ -120,6 +136,7 @@ MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
 - **Pilot Statistics**: Track kills, deaths, flight hours, and more
 - **Multi-Platform Support**: DCS World, BMS, and other flight simulators
 - **Discord Integration**: Automated mission summaries and pilot stats
+- **DCS Server Bot Integration**: Real-time data from USERSTATS and MISSIONSTATS plugins
 - **Web Interface**: Modern React frontend with Tailwind CSS styling
 - **RESTful API**: Clean API endpoints for integration
 - **Responsive Design**: Works on desktop, tablet, and mobile
@@ -131,6 +148,15 @@ MAX_CONTENT_LENGTH=16777216  # 16MB in bytes
 ```bash
 cd backend
 python dev.py  # Starts with auto-reload
+```
+
+### Validation Testing
+
+Test the input validation system:
+
+```bash
+cd backend
+python test_validation.py
 ```
 
 ### Frontend Development
@@ -165,6 +191,8 @@ curl http://localhost:5000/pilots
 - `GET /flights/<id>` - Get specific flight
 - `POST /discord/pilot-stats` - Send pilot stats to Discord
 - `POST /discord/flight-summary` - Send flight summary to Discord
+- `POST /dcs/userstats` - Receive USERSTATS from DCS Server Bot
+- `POST /dcs/missionstats` - Receive MISSIONSTATS from DCS Server Bot
 
 ## 🎨 UI Components
 

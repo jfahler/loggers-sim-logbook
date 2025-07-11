@@ -1,0 +1,9 @@
+missionstats:
+  enabled: true
+  webhook_url: "http://localhost:5000/dcs/missionstats"
+  webhook_secret: "loggers_webhook_secret_2024"
+  send_on_mission_end: true
+  include_player_stats: true
+  include_mission_summary: true
+  include_aircraft_usage: true
+  include_kill_statistics: true 

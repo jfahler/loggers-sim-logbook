@@ -1,0 +1,13 @@
+userstats:
+  enabled: true
+  webhook_url: "http://localhost:5000/dcs/userstats"
+  webhook_secret: "loggers_webhook_secret_2024"
+  send_on_mission_end: true
+  send_on_player_leave: true
+  include_flight_time: true
+  include_kills: true
+  include_deaths: true
+  include_ejections: true
+  include_crashes: true
+  include_aircraft: true
+  include_side: true 
