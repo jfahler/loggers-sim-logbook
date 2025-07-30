@@ -137,6 +137,7 @@ See `backend/VALIDATION_README.md` for detailed documentation.
 - **Multi-Platform Support**: DCS World, BMS, and other flight simulators
 - **Discord Integration**: Automated mission summaries and pilot stats
 - **DCS Server Bot Integration**: Real-time data from USERSTATS and MISSIONSTATS plugins
+- **DCS REST API Integration**: Server management, player monitoring, and mission control
 - **Web Interface**: Modern React frontend with Tailwind CSS styling
 - **RESTful API**: Clean API endpoints for integration
 - **Responsive Design**: Works on desktop, tablet, and mobile
@@ -193,6 +194,13 @@ curl http://localhost:5000/pilots
 - `POST /discord/flight-summary` - Send flight summary to Discord
 - `POST /dcs/userstats` - Receive USERSTATS from DCS Server Bot
 - `POST /dcs/missionstats` - Receive MISSIONSTATS from DCS Server Bot
+- `GET /dcs/server/info` - Get DCS server information
+- `GET /dcs/server/players` - Get current players on server
+- `GET /dcs/server/mission` - Get current mission information
+- `POST /dcs/server/chat` - Send chat message to DCS server
+- `POST /dcs/server/mission/restart` - Restart current mission
+- `GET /dcs/server/missions` - Get list of available missions
+- `GET /dcs/server/stats` - Get server statistics
 
 ## 🎨 UI Components
 

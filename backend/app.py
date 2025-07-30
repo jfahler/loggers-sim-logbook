@@ -15,14 +15,9 @@ from xml_parser import parse_xml, load_squadron_callsigns, save_squadron_callsig
 from update_profiles import update_profiles_from_data
 from generate_index import generate_index
 from webhook_helpers import send_pilot_stats, send_flight_summary
-from dcs_server_bot import (
-    process_userstats_webhook, process_missionstats_webhook,
-    parse_userstats_data, parse_missionstats_data,
-    verify_webhook_signature, DCS_BOT_ENABLED
-)
 from validation import (
     validate_file_upload, validate_xml_content, validate_discord_data,
-    validate_callsigns_list, sanitize_string, ValidationError
+    validate_callsigns_list, sanitize_string
 )
 from error_handling import (
     APIError, ErrorCodes, create_error_response, handle_api_error,
@@ -384,179 +379,6 @@ def post_flight_summary():
             status_code=500
         )
 
-# DCS Server Bot Integration Endpoints
-
-@app.route('/dcs/userstats', methods=['POST'])
-@limiter.limit(RATE_LIMIT_DISCORD)
-def dcs_userstats_webhook():
-    """Handle USERSTATS webhook from DCS Server Bot"""
-    request_id = str(uuid.uuid4())
-    operation = "dcs_userstats_webhook"
-    
-    try:
-        log_operation_start(operation, {"request_id": request_id})
-        
-        # Check if DCS Bot integration is enabled
-        if not DCS_BOT_ENABLED:
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_DISABLED,
-                message="DCS Server Bot integration is disabled",
-                status_code=503
-            )
-        
-        # Validate request size
-        validate_request_size()
-        
-        if not request.is_json:
-            raise APIError(
-                error_code=ErrorCodes.INVALID_INPUT,
-                message="Content-Type must be application/json",
-                status_code=400
-            )
-        
-        # Verify webhook signature if configured
-        signature = request.headers.get('X-DCS-Signature', '')
-        if not verify_webhook_signature(request.get_data(as_text=True), signature):
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_SIGNATURE_ERROR,
-                message="Webhook signature verification failed",
-                status_code=401
-            )
-        
-        data = request.get_json()
-        
-        if not data:
-            raise APIError(
-                error_code=ErrorCodes.INVALID_INPUT,
-                message="No JSON data provided",
-                status_code=400
-            )
-        
-        # Parse and validate USERSTATS data
-        try:
-            userstats = parse_userstats_data(data)
-        except ValidationError as e:
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_INVALID_DATA,
-                message=str(e),
-                status_code=400
-            )
-        
-        # Process the USERSTATS data
-        result = process_userstats_webhook(userstats)
-        
-        log_operation_success(operation, {
-            "request_id": request_id,
-            "player_name": userstats.player_name,
-            "mission_name": userstats.mission_name
-        })
-        
-        return jsonify({
-            "success": True,
-            "message": result.get("message", "USERSTATS processed successfully"),
-            "request_id": request_id,
-            "player_name": userstats.player_name,
-            "total_kills": result.get("total_kills", 0),
-            "flight_time": result.get("flight_time", 0)
-        }), 200
-        
-    except APIError:
-        # Re-raise API errors to be handled by error handler
-        raise
-    except Exception as e:
-        log_operation_failure(operation, e, {"request_id": request_id})
-        raise APIError(
-            error_code=ErrorCodes.DCS_BOT_WEBHOOK_ERROR,
-            message=f"Error processing USERSTATS webhook: {str(e)}",
-            status_code=500
-        )
-
-@app.route('/dcs/missionstats', methods=['POST'])
-@limiter.limit(RATE_LIMIT_DISCORD)
-def dcs_missionstats_webhook():
-    """Handle MISSIONSTATS webhook from DCS Server Bot"""
-    request_id = str(uuid.uuid4())
-    operation = "dcs_missionstats_webhook"
-    
-    try:
-        log_operation_start(operation, {"request_id": request_id})
-        
-        # Check if DCS Bot integration is enabled
-        if not DCS_BOT_ENABLED:
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_DISABLED,
-                message="DCS Server Bot integration is disabled",
-                status_code=503
-            )
-        
-        # Validate request size
-        validate_request_size()
-        
-        if not request.is_json:
-            raise APIError(
-                error_code=ErrorCodes.INVALID_INPUT,
-                message="Content-Type must be application/json",
-                status_code=400
-            )
-        
-        # Verify webhook signature if configured
-        signature = request.headers.get('X-DCS-Signature', '')
-        if not verify_webhook_signature(request.get_data(as_text=True), signature):
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_SIGNATURE_ERROR,
-                message="Webhook signature verification failed",
-                status_code=401
-            )
-        
-        data = request.get_json()
-        
-        if not data:
-            raise APIError(
-                error_code=ErrorCodes.INVALID_INPUT,
-                message="No JSON data provided",
-                status_code=400
-            )
-        
-        # Parse and validate MISSIONSTATS data
-        try:
-            missionstats = parse_missionstats_data(data)
-        except ValidationError as e:
-            raise APIError(
-                error_code=ErrorCodes.DCS_BOT_INVALID_DATA,
-                message=str(e),
-                status_code=400
-            )
-        
-        # Process the MISSIONSTATS data
-        result = process_missionstats_webhook(missionstats)
-        
-        log_operation_success(operation, {
-            "request_id": request_id,
-            "mission_name": missionstats.mission_name,
-            "players_count": len(missionstats.players)
-        })
-        
-        return jsonify({
-            "success": True,
-            "message": result.get("message", "MISSIONSTATS processed successfully"),
-            "request_id": request_id,
-            "mission_name": missionstats.mission_name,
-            "players_count": result.get("players_count", 0),
-            "duration": result.get("duration", 0),
-            "mission_file": result.get("mission_file", "")
-        }), 200
-        
-    except APIError:
-        # Re-raise API errors to be handled by error handler
-        raise
-    except Exception as e:
-        log_operation_failure(operation, e, {"request_id": request_id})
-        raise APIError(
-            error_code=ErrorCodes.DCS_BOT_WEBHOOK_ERROR,
-            message=f"Error processing MISSIONSTATS webhook: {str(e)}",
-            status_code=500
-        )
-
 # Health check endpoint for monitoring
 @app.route('/health')
 def health_check():
@@ -564,8 +386,6 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "discord_configured": bool(os.getenv("DISCORD_WEBHOOK_URL")),
-        "dcs_bot_enabled": DCS_BOT_ENABLED,
-        "dcs_bot_webhook_configured": bool(os.getenv("DCS_BOT_WEBHOOK_SECRET"))
     })
 
 # Error statistics endpoint for monitoring
@@ -593,7 +413,7 @@ def security_info():
 @app.errorhandler(APIError)
 def handle_api_error(error):
     """Handle custom API errors"""
-    return handle_api_error(error)
+    return error_handler.handle_error(error)
 
 @app.errorhandler(413)
 def too_large(e):

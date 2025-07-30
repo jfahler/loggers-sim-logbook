@@ -47,6 +47,12 @@ class ErrorCodes:
     DCS_BOT_SIGNATURE_ERROR = "DCS_BOT_SIGNATURE_ERROR"
     DCS_BOT_DISABLED = "DCS_BOT_DISABLED"
     
+    # DCS REST API integration
+    DCS_REST_API_ERROR = "DCS_REST_API_ERROR"
+    DCS_REST_API_DISABLED = "DCS_REST_API_DISABLED"
+    DCS_REST_API_TIMEOUT = "DCS_REST_API_TIMEOUT"
+    DCS_REST_API_AUTH_ERROR = "DCS_REST_API_AUTH_ERROR"
+    
     # Configuration
     CONFIG_ERROR = "CONFIG_ERROR"
     ENV_VAR_MISSING = "ENV_VAR_MISSING"
@@ -81,6 +87,10 @@ class ErrorMessages:
         ErrorCodes.DCS_BOT_INVALID_DATA: "Invalid DCS Server Bot data",
         ErrorCodes.DCS_BOT_SIGNATURE_ERROR: "DCS Server Bot signature verification failed",
         ErrorCodes.DCS_BOT_DISABLED: "DCS Server Bot integration is disabled",
+        ErrorCodes.DCS_REST_API_ERROR: "DCS REST API error",
+        ErrorCodes.DCS_REST_API_DISABLED: "DCS REST API integration is disabled",
+        ErrorCodes.DCS_REST_API_TIMEOUT: "DCS REST API request timeout",
+        ErrorCodes.DCS_REST_API_AUTH_ERROR: "DCS REST API authentication error",
         ErrorCodes.CONFIG_ERROR: "Configuration error",
         ErrorCodes.ENV_VAR_MISSING: "Environment variable missing",
         ErrorCodes.INTERNAL_ERROR: "Internal server error",

@@ -1,0 +1,35 @@
+restapi:
+  enabled: true
+  port: 8080
+  host: "0.0.0.0"
+  token: "loggers_rest_api_token_2024"
+  cors_origins: ["http://10.0.0.192:3000", "http://10.0.0.192:5000"]
+  rate_limit: 100
+  rate_limit_window: 60
+  
+  # Authentication
+  auth_required: true
+  token_header: "Authorization"
+  token_prefix: "Bearer"
+  
+  # Logging
+  log_level: "INFO"
+  log_requests: true
+  log_responses: false
+  
+  # Security
+  max_request_size: "10MB"
+  timeout: 30
+  
+  # Endpoints to enable
+  endpoints:
+    server_info: true
+    server_players: true
+    server_mission: true
+    server_chat: true
+    server_restart: true
+    server_missions: true
+    server_stats: true
+    player_kick: true
+    player_ban: true
+    player_unban: true 

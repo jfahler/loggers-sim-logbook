@@ -15,6 +15,9 @@ from error_handling import (
     APIError, ErrorCodes, log_operation_start, log_operation_success,
     log_operation_failure, safe_json_save, safe_json_read
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load player profiles for AI filtering
 def load_player_profiles():
@@ -23,8 +26,8 @@ def load_player_profiles():
         with open('config/profiles.json', 'r', encoding='utf-8') as f:
             data = json.load(f)
         return data.get('players', [])
-    except (FileNotFoundError, json.JSONDecodeError):
-        print("Warning: profiles.json not found or invalid, using empty player list")
+    except (FileNotFoundError, json.JSONDecodeError, Exception) as e:
+        logger.warning(f"profiles.json not found or invalid, using empty player list: {e}")
         return []
 
 # Cache the player profiles
@@ -64,7 +67,7 @@ def parse_xml(filepath: str) -> dict:
     
     try:
         log_operation_start(operation, {"file_path": filepath})
-        print(f"Parsing XML file at: {filepath}")
+        logger.info(f"Parsing XML file at: {filepath}")
         
         # Basic file validation
         if not Path(filepath).exists():
@@ -144,16 +147,16 @@ def parse_tacview_xml(xml_path: str) -> dict:
         # Extract mission metadata if available
         mission_name = extract_mission_name(root, xml_path)
         mission_date = extract_mission_date(root)
-        mission_duration = extract_mission_duration(root)
+        mission_duration = extract_mission_duration_safe(root)
         
         # Check for duplicate mission processing
         if is_mission_already_processed(mission_name, mission_date):
-            print(f"Mission already processed: {mission_name} on {mission_date}")
+            logger.warning(f"Mission already processed: {mission_name} on {mission_date}")
             return {"duplicate": True, "mission_name": mission_name, "mission_date": mission_date}
         
         events = root.find("Events")
         if events is None:
-            print("Warning: No Events section found in XML")
+            logger.warning("Warning: No Events section found in XML")
             return {}
         
         # Define ground target types (could be moved to config)
@@ -166,8 +169,8 @@ def parse_tacview_xml(xml_path: str) -> dict:
         pilot_missions = defaultdict(lambda: {
             "date": mission_date,
             "mission": mission_name,
-            "flight_minutes": int(mission_duration / 60),  # Convert seconds to minutes
-            "aa_kills": 0, 
+            "flight_minutes": int(mission_duration / 60) if mission_duration is not None else 45,  # Convert seconds to minutes, default to 45 if None
+            "aa_kills": 0,
             "ag_kills": 0, 
             "frat_kills": 0, 
             "rtb": 0,
@@ -205,202 +208,227 @@ def parse_tacview_xml(xml_path: str) -> dict:
         return finalize_pilot_data(pilot_missions)
         
     except Exception as e:
-        print(f"Error parsing Tacview XML: {e}")
+        logger.error(f"Error parsing Tacview XML: {e}")
         return {}
 
 def calculate_actual_flight_hours(pilot_missions: dict, pilot_positions: dict):
     """Calculate actual flight hours excluding stationary time (>15 minutes)"""
-    for pilot_name, positions in pilot_positions.items():
-        if pilot_name not in pilot_missions:
-            continue
+    try:
+        for pilot_name, positions in pilot_positions.items():
+            if pilot_name not in pilot_missions:
+                continue
             
-        if not positions:
-            continue
+            if not positions:
+                continue
             
-        # Sort positions by time
-        positions.sort(key=lambda x: x['time'])
+            # Sort positions by time
+            positions.sort(key=lambda x: x['time'])
         
-        total_flight_time = 0
-        last_position = None
-        stationary_start = None
+            total_flight_time = 0
+            last_position = None
+            stationary_start = None
         
-        for pos in positions:
-            if last_position is not None:
-                time_diff = pos['time'] - last_position['time']
-                distance = calculate_distance(last_position, pos)
+            for pos in positions:
+                if last_position is not None:
+                    time_diff = pos['time'] - last_position['time']
+                    distance = calculate_distance(last_position, pos)
                 
-                # If stationary for more than 15 minutes (900 seconds), don't count this time
-                if distance < 100:  # Less than 100 meters movement
-                    if stationary_start is None:
-                        stationary_start = last_position['time']
-                    elif pos['time'] - stationary_start > 900:  # 15 minutes
-                        # Don't count this time as flight time
-                        continue
-                else:
-                    # Moving, reset stationary timer
-                    stationary_start = None
+                    # If stationary for more than 15 minutes (900 seconds), don't count this time
+                    if distance < 100:  # Less than 100 meters movement
+                        if stationary_start is None:
+                            stationary_start = last_position['time']
+                        elif pos['time'] - stationary_start > 900:  # 15 minutes
+                            # Don't count this time as flight time
+                            continue
+                    else:
+                        # Moving, reset stationary timer
+                        stationary_start = None
                 
-                total_flight_time += time_diff
+                    total_flight_time += time_diff
             
-            last_position = pos
+                last_position = pos
         
-        # Update flight hours
-        pilot_missions[pilot_name]["flight_minutes"] = int(total_flight_time / 60)
+            # Update flight hours
+            pilot_missions[pilot_name]["flight_minutes"] = int(total_flight_time / 60) if total_flight_time is not None else 0
+    except Exception as e:
+        logger.warning(f"Warning: Could not calculate actual flight hours, using default: {e}")
+        # Ensure all pilots have a default flight_minutes value
+        for pilot_name in pilot_missions:
+            if "flight_minutes" not in pilot_missions[pilot_name]:
+                pilot_missions[pilot_name]["flight_minutes"] = 0
 
 def calculate_distance(pos1: dict, pos2: dict) -> float:
     """Calculate distance between two positions"""
-    lat1, lon1 = pos1['lat'], pos1['lon']
-    lat2, lon2 = pos2['lat'], pos2['lon']
+    try:
+        lat1, lon1 = pos1['lat'], pos1['lon']
+        lat2, lon2 = pos2['lat'], pos2['lon']
     
-    # Simple distance calculation (approximate)
-    return math.sqrt((lat2 - lat1)**2 + (lon2 - lon1)**2) * 111000  # Convert to meters
+        # Simple distance calculation (approximate)
+        return math.sqrt((lat2 - lat1)**2 + (lon2 - lon1)**2) * 111000  # Convert to meters
+    except Exception as e:
+        logger.warning(f"Warning: Could not calculate distance, returning 0: {e}")
+        return 0.0
 
 def process_event(event, pilot_missions: dict, ground_types: set, pilot_positions: dict):
     """Process a single event from the XML"""
-    action = event.findtext("Action")
-    primary = event.find("PrimaryObject")
-    secondary = event.find("SecondaryObject")
+    try:
+        action = event.findtext("Action")
+        primary = event.find("PrimaryObject")
+        secondary = event.find("SecondaryObject")
     
-    if primary is None:
-        return
+        if primary is None:
+            return
     
-    pilot = primary.findtext("Pilot", default="").strip()
-    aircraft = primary.findtext("Name", default="Unknown")
-    group = primary.findtext("Group", default="")
+        pilot = primary.findtext("Pilot", default="").strip()
+        aircraft = primary.findtext("Name", default="Unknown")
+        group = primary.findtext("Group", default="")
     
-    # Validate and sanitize pilot name
-    if not pilot or pilot.lower() == "unknown":
-        return
+        # Validate and sanitize pilot name
+        if not pilot or pilot.lower() == "unknown":
+            return
     
-    # Validate pilot name
-    is_valid, error = validate_pilot_name(pilot)
-    if not is_valid:
-        print(f"Invalid pilot name '{pilot}': {error}")
-        return
+        # Validate pilot name
+        is_valid, error = validate_pilot_name(pilot)
+        if not is_valid:
+            logger.warning(f"Invalid pilot name '{pilot}': {error}")
+            return
     
-    # Sanitize pilot name
-    pilot = sanitize_string(pilot, 100)
+        # Sanitize pilot name
+        pilot = sanitize_string(pilot, 100)
     
-    # Validate aircraft name
-    is_valid, error = validate_aircraft_name(aircraft)
-    if not is_valid:
-        print(f"Invalid aircraft name '{aircraft}': {error}")
-        aircraft = "Unknown"
+        # Validate aircraft name
+        is_valid, error = validate_aircraft_name(aircraft)
+        if not is_valid:
+            logger.warning(f"Invalid aircraft name '{aircraft}': {error}")
+            aircraft = "Unknown"
     
-    # Sanitize aircraft name
-    aircraft = sanitize_string(aircraft, 100)
+        # Sanitize aircraft name
+        aircraft = sanitize_string(aircraft, 100)
     
-    # Debug: Log all pilots being checked
-    print(f"Checking pilot: '{pilot}' (aircraft: {aircraft}, group: {group})")
+        # Debug: Log all pilots being checked
+        logger.info(f"Checking pilot: '{pilot}' (aircraft: {aircraft}, group: {group})")
     
-    # Only process player clients, not AI
-    if not is_player_client(pilot, aircraft, group):
-        print(f"  -> FILTERED OUT (AI)")
-        return
+        # Only process player clients, not AI
+        if not is_player_client(pilot, aircraft, group):
+            logger.info(f"  -> FILTERED OUT (AI)")
+            return
     
-    print(f"  -> ACCEPTED (Player)")
+        logger.info(f"  -> ACCEPTED (Player)")
     
-    # Resolve nickname using fuzzy matching
-    nickname = resolve_fuzzy_nickname(pilot)
+        # Resolve nickname using fuzzy matching
+        nickname = resolve_fuzzy_nickname(pilot)
     
-    # Validate nickname
-    is_valid, error = validate_pilot_name(nickname)
-    if not is_valid:
-        print(f"Invalid nickname '{nickname}': {error}")
-        return
+        # Validate nickname
+        is_valid, error = validate_pilot_name(nickname)
+        if not is_valid:
+            logger.warning(f"Invalid nickname '{nickname}': {error}")
+            return
     
-    # Track all nicknames for this pilot
-    if pilot not in pilot_missions[nickname]["nicknames"]:
-        pilot_missions[nickname]["nicknames"].append(pilot)
+        # Track all nicknames for this pilot
+        if pilot not in pilot_missions[nickname]["nicknames"]:
+            pilot_missions[nickname]["nicknames"].append(pilot)
     
-    # Update aircraft info (last seen aircraft for this pilot)
-    pilot_missions[nickname]["aircraft"] = aircraft
+        # Update aircraft info (last seen aircraft for this pilot)
+        pilot_missions[nickname]["aircraft"] = aircraft
     
-    # Track position for flight time calculation
-    location = event.find("Location")
-    if location is not None:
-        lat = location.findtext("Latitude")
-        lon = location.findtext("Longitude")
-        time_elem = event.find("Time")
-        time_val = float(time_elem.text) if time_elem is not None and time_elem.text else 0
+        # Track position for flight time calculation
+        location = event.find("Location")
+        if location is not None:
+            lat = location.findtext("Latitude")
+            lon = location.findtext("Longitude")
+            time_elem = event.find("Time")
+            time_val = float(time_elem.text) if time_elem is not None and time_elem.text else 0
         
-        if lat and lon and time_val:
-            pilot_positions[nickname].append({
-                'lat': float(lat),
-                'lon': float(lon),
-                'time': time_val
-            })
+            if lat and lon and time_val:
+                pilot_positions[nickname].append({
+                    'lat': float(lat),
+                    'lon': float(lon),
+                    'time': time_val
+                })
     
-    # Process different event types
-    if action == "HasBeenDestroyed":
-        if secondary is not None:
-            # Someone destroyed something
-            attacker = secondary.findtext("Pilot", "").strip()
-            if attacker and attacker.lower() != "unknown" and is_player_client(attacker, aircraft, group):
-                attacker_nick = resolve_fuzzy_nickname(attacker)
-                destroyed_type = primary.findtext("Type", "")
-                destroyed_coalition = primary.findtext("Coalition", "")
-                attacker_coalition = secondary.findtext("Coalition", "")
+        # Process different event types
+        if action == "HasBeenDestroyed":
+            if secondary is not None:
+                # Someone destroyed something
+                attacker = secondary.findtext("Pilot", "").strip()
+                if attacker and attacker.lower() != "unknown" and is_player_client(attacker, aircraft, group):
+                    attacker_nick = resolve_fuzzy_nickname(attacker)
+                    destroyed_type = primary.findtext("Type", "")
+                    destroyed_coalition = primary.findtext("Coalition", "")
+                    attacker_coalition = secondary.findtext("Coalition", "")
                 
-                # Check for friendly fire
-                if destroyed_coalition == attacker_coalition and destroyed_coalition:
-                    pilot_missions[attacker_nick]["frat_kills"] += 1
-                elif destroyed_type in ground_types:
-                    pilot_missions[attacker_nick]["ag_kills"] += 1
-                else:
-                    pilot_missions[attacker_nick]["aa_kills"] += 1
-        else:
-            # Primary object was destroyed (pilot death)
-            victim_nick = resolve_fuzzy_nickname(pilot)
-            pilot_missions[victim_nick]["kia"] += 1
-            pilot_missions[victim_nick]["deaths"] += 1
+                    # Check for friendly fire
+                    if destroyed_coalition == attacker_coalition and destroyed_coalition:
+                        pilot_missions[attacker_nick]["frat_kills"] += 1
+                    elif destroyed_type in ground_types:
+                        pilot_missions[attacker_nick]["ag_kills"] += 1
+                    else:
+                        pilot_missions[attacker_nick]["aa_kills"] += 1
+            else:
+                # Primary object was destroyed (pilot death)
+                victim_nick = resolve_fuzzy_nickname(pilot)
+                pilot_missions[victim_nick]["kia"] += 1
+                pilot_missions[victim_nick]["deaths"] += 1
             
-    elif action == "HasLanded":
-        pilot_missions[nickname]["rtb"] += 1
+        elif action == "HasLanded":
+            pilot_missions[nickname]["rtb"] += 1
         
-    elif action == "HasEjected":
-        pilot_missions[nickname]["ejections"] += 1
+        elif action == "HasEjected":
+            pilot_missions[nickname]["ejections"] += 1
         
-    elif action == "HasTakenOff":
-        # Could track multiple sorties per pilot
-        pass  # Already counting sorties in initialization
+        elif action == "HasTakenOff":
+            # Could track multiple sorties per pilot
+            pass  # Already counting sorties in initialization
+    except Exception as e:
+        logger.error(f"Error processing event: {e}")
+        # Continue processing other events even if one fails
+        pass
+    
 
 def extract_mission_name(root, xml_path: str) -> str:
     """Extract mission name from XML or filename"""
-    # Try to find mission name in XML metadata
-    mission_elem = root.find(".//Mission")
-    if mission_elem is not None:
-        name = mission_elem.get("name") or mission_elem.text
-        if name:
-            name = name.strip()
-            # Validate mission name
-            is_valid, error = validate_mission_name(name)
-            if is_valid:
-                return sanitize_string(name, 200)
-    
-    # Fall back to filename
-    filename = Path(xml_path).stem
-    return sanitize_string(filename, 200)
+    try:
+        # Try to find mission name in XML metadata
+        mission_elem = root.find(".//Mission")
+        if mission_elem is not None:
+            name = mission_elem.get("name") or mission_elem.text
+            if name:
+                name = name.strip()
+                # Validate mission name
+                is_valid, error = validate_mission_name(name)
+                if is_valid:
+                    return sanitize_string(name, 200)
+        
+        # Fall back to filename
+        filename = Path(xml_path).stem
+        return sanitize_string(filename, 200)
+    except Exception as e:
+        logger.warning(f"Warning: Could not extract mission name, using default: {e}")
+        return "Unknown Mission"
 
 def extract_mission_date(root) -> str:
     """Extract mission date from XML"""
-    # Try to find date in various places
-    date_elem = root.find(".//Date")
-    if date_elem is not None and date_elem.text:
-        return date_elem.text.strip()
+    try:
+        # Try to find date in various places
+        date_elem = root.find(".//Date")
+        if date_elem is not None and date_elem.text:
+            return date_elem.text.strip()
     
-    # Try timestamp
-    timestamp_elem = root.find(".//Timestamp")
-    if timestamp_elem is not None and timestamp_elem.text:
-        try:
-            # Convert timestamp to date
-            ts = float(timestamp_elem.text)
-            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-        except:
-            pass
+        # Try timestamp
+        timestamp_elem = root.find(".//Timestamp")
+        if timestamp_elem is not None and timestamp_elem.text:
+            try:
+                # Convert timestamp to date
+                ts = float(timestamp_elem.text)
+                return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+            except:
+                pass
     
-    # Default to today
-    return datetime.now().strftime("%Y-%m-%d")
+        # Default to today
+        return datetime.now().strftime("%Y-%m-%d")
+    except Exception as e:
+        logger.warning(f"Warning: Could not extract mission date, using default: {e}")
+        return datetime.now().strftime("%Y-%m-%d")
 
 def extract_mission_duration(root) -> int:
     """Extract mission duration in seconds"""
@@ -429,51 +457,64 @@ def extract_mission_duration(root) -> int:
     # Default duration (45 minutes)
     return 2700
 
+
+def extract_mission_duration_safe(root) -> int:
+    """Extract mission duration in seconds with safety checks"""
+    try:
+        duration = extract_mission_duration(root)
+        return duration if duration is not None else 2700
+    except Exception:
+        return 2700  # Default to 45 minutes
+
 def detect_platform(root) -> str:
     """Detect if this is from DCS, BMS, IL2, or other sim"""
-    # Look for platform indicators in the XML
-    generator = root.get("generator", "").lower()
-    source = root.findtext(".//Source", "").lower()
+    try:
+        # Look for platform indicators in the XML
+        generator = root.get("generator", "").lower() if root.get("generator") else ""
+        source = root.findtext(".//Source", "").lower() if root.findtext(".//Source") else ""
     
-    # Check generator field
-    if "dcs" in generator:
-        platform = "DCS"
-    elif "bms" in generator or "falcon" in generator:
-        platform = "BMS"
-    elif "il2" in generator or "il-2" in generator or "sturmovik" in generator:
-        platform = "IL2"
-    elif "tacview" in generator:
-        platform = "Tacview"  # Generic
-    else:
-        # Check source field
-        if "dcs" in source:
+        # Check generator field
+        if "dcs" in generator:
             platform = "DCS"
-        elif "bms" in source or "falcon" in source:
+        elif "bms" in generator or "falcon" in generator:
             platform = "BMS"
-        elif "il2" in source or "il-2" in source or "sturmovik" in source:
+        elif "il2" in generator or "il-2" in generator or "sturmovik" in generator:
             platform = "IL2"
+        elif "tacview" in generator:
+            platform = "Tacview"  # Generic
         else:
-            # Check for DCS-specific elements
-            if root.find(".//Mission") is not None:
-                mission_elem = root.find(".//Mission")
-                if mission_elem is not None:
-                    title = mission_elem.findtext("Title", "").lower()
-                    if any(keyword in title for keyword in ["dcs", "digital combat simulator"]):
-                        platform = "DCS"
+            # Check source field
+            if "dcs" in source:
+                platform = "DCS"
+            elif "bms" in source or "falcon" in source:
+                platform = "BMS"
+            elif "il2" in source or "il-2" in source or "sturmovik" in source:
+                platform = "IL2"
+            else:
+                # Check for DCS-specific elements
+                if root.find(".//Mission") is not None:
+                    mission_elem = root.find(".//Mission")
+                    if mission_elem is not None:
+                        title = mission_elem.findtext("Title", "").lower() if mission_elem.findtext("Title") else ""
+                        if any(keyword in title for keyword in ["dcs", "digital combat simulator"]):
+                            platform = "DCS"
+                        else:
+                            platform = "DCS"  # Default
                     else:
                         platform = "DCS"  # Default
                 else:
                     platform = "DCS"  # Default
-            else:
-                platform = "DCS"  # Default
     
-    # Validate platform
-    is_valid, error = validate_platform(platform)
-    if not is_valid:
-        print(f"Invalid platform '{platform}': {error}, defaulting to DCS")
-        platform = "DCS"
+        # Validate platform
+        is_valid, error = validate_platform(platform)
+        if not is_valid:
+            logger.warning(f"Invalid platform '{platform}': {error}, defaulting to DCS")
+            platform = "DCS"
     
-    return platform
+        return platform
+    except Exception as e:
+        logger.warning(f"Warning: Could not detect platform, defaulting to DCS: {e}")
+        return "DCS"
 
 def format_duration_from_seconds(seconds: float) -> str:
     """Convert seconds to H:MM format"""
@@ -483,68 +524,80 @@ def format_duration_from_seconds(seconds: float) -> str:
 
 def finalize_pilot_data(pilot_missions: dict) -> dict:
     """Clean up and validate pilot data before returning"""
-    finalized = {}
+    try:
+        finalized = {}
     
-    for nickname, data in pilot_missions.items():
-        # Validate pilot data structure
-        try:
-            # Validate numeric fields
-            numeric_fields = ['aa_kills', 'ag_kills', 'frat_kills', 'rtb', 'ejections', 'deaths', 'flight_minutes']
-            for field in numeric_fields:
-                if field in data:
-                    is_valid, error = validate_numeric_value(data[field], field, min_val=0, max_val=10000)
+        for nickname, data in pilot_missions.items():
+            # Validate pilot data structure
+            try:
+                # Validate numeric fields
+                numeric_fields = ['aa_kills', 'ag_kills', 'frat_kills', 'rtb', 'ejections', 'deaths', 'flight_minutes']
+                for field in numeric_fields:
+                    if field in data:
+                        # Ensure the field value is not None
+                        field_value = data[field] if data[field] is not None else 0
+                        is_valid, error = validate_numeric_value(field_value, field, min_val=0, max_val=10000)
+                        if not is_valid:
+                            logger.warning(f"Invalid {field} for {nickname}: {error}")
+                            data[field] = 0
+            
+                # Validate string fields
+                if 'mission' in data:
+                    mission_name = data['mission'] if data['mission'] is not None else "Unknown Mission"
+                    is_valid, error = validate_mission_name(mission_name)
                     if not is_valid:
-                        print(f"Invalid {field} for {nickname}: {error}")
-                        data[field] = 0
+                        logger.warning(f"Invalid mission name for {nickname}: {error}")
+                        data['mission'] = "Unknown Mission"
             
-            # Validate string fields
-            if 'mission' in data:
-                is_valid, error = validate_mission_name(data['mission'])
-                if not is_valid:
-                    print(f"Invalid mission name for {nickname}: {error}")
-                    data['mission'] = "Unknown Mission"
+                if 'aircraft' in data:
+                    aircraft_name = data['aircraft'] if data['aircraft'] is not None else "Unknown"
+                    is_valid, error = validate_aircraft_name(aircraft_name)
+                    if not is_valid:
+                        logger.warning(f"Invalid aircraft for {nickname}: {error}")
+                        data['aircraft'] = "Unknown"
             
-            if 'aircraft' in data:
-                is_valid, error = validate_aircraft_name(data['aircraft'])
-                if not is_valid:
-                    print(f"Invalid aircraft for {nickname}: {error}")
-                    data['aircraft'] = "Unknown"
+                if 'platform' in data:
+                    platform_name = data['platform'] if data['platform'] is not None else "DCS"
+                    is_valid, error = validate_platform(platform_name)
+                    if not is_valid:
+                        logger.warning(f"Invalid platform for {nickname}: {error}")
+                        data['platform'] = "DCS"
             
-            if 'platform' in data:
-                is_valid, error = validate_platform(data['platform'])
-                if not is_valid:
-                    print(f"Invalid platform for {nickname}: {error}")
-                    data['platform'] = "DCS"
+                # Sanitize string fields
+                for field in ['mission', 'aircraft', 'platform']:
+                    if field in data:
+                        field_value = data[field] if data[field] is not None else ""
+                        data[field] = sanitize_string(field_value, 200)
             
-            # Sanitize string fields
-            for field in ['mission', 'aircraft', 'platform']:
-                if field in data:
-                    data[field] = sanitize_string(data[field], 200)
-            
-        except Exception as e:
-            print(f"Error validating pilot data for {nickname}: {e}")
-            continue
+            except Exception as e:
+                logger.error(f"Error validating pilot data for {nickname}: {e}")
+                continue
         
-        # Skip pilots with no activity
-        total_activity = (data["aa_kills"] + data["ag_kills"] + 
-                         data["frat_kills"] + data["rtb"] + data["kia"])
+            # Skip pilots with no activity
+            total_activity = (data.get("aa_kills", 0) or 0) + (data.get("ag_kills", 0) or 0) + \
+                             (data.get("frat_kills", 0) or 0) + (data.get("rtb", 0) or 0) + (data.get("kia", 0) or 0)
         
-        if total_activity > 0 or data["flight_minutes"] > 0:
-            # Calculate total kills
-            data["total_kills"] = data["aa_kills"] + data["ag_kills"]
+            if total_activity > 0 or (data.get("flight_minutes", 0) or 0) > 0:
+                # Calculate total kills
+                data["total_kills"] = (data.get("aa_kills", 0) or 0) + (data.get("ag_kills", 0) or 0)
             
-            # Calculate K/D ratio
-            if data["deaths"] == 0:
-                data["kd_ratio"] = "∞" if data["total_kills"] > 0 else "N/A"
-            else:
-                data["kd_ratio"] = f"{data['total_kills'] / data['deaths']:.2f}"
+                # Calculate K/D ratio
+                deaths = data.get("deaths", 0) or 0
+                total_kills = data.get("total_kills", 0) or 0
+                if deaths == 0:
+                    data["kd_ratio"] = "∞" if total_kills > 0 else "N/A"
+                else:
+                    data["kd_ratio"] = f"{total_kills / deaths:.2f}" if deaths > 0 else "N/A"
             
-            # Ensure flight_minutes is an integer
-            data["flight_minutes"] = int(data.get("flight_minutes", 0))
+                # Ensure flight_minutes is an integer
+                data["flight_minutes"] = int(data.get("flight_minutes", 0) or 0)
             
-            finalized[nickname] = data
+                finalized[nickname] = data
     
-    return finalized
+        return finalized
+    except Exception as e:
+        logger.error(f"Error finalizing pilot data: {e}")
+        return {}
 
 def is_player_client(pilot_name: str, aircraft_name: str, group: str = "") -> bool:
     """Determine if this is a player client (not AI)"""
@@ -735,7 +788,7 @@ def is_player_client(pilot_name: str, aircraft_name: str, group: str = "") -> bo
     
     # Now check if pilot name matches squadron callsigns
     # Load squadron callsigns from config
-    squadron_callsigns = load_squadron_callsigns()
+    squadron_callsigns = load_squadron_callsigns_safe()
     
     if not squadron_callsigns:
         # If no squadron callsigns configured, accept all player aircraft pilots
@@ -782,11 +835,21 @@ def load_squadron_callsigns() -> list:
         config_path = os.path.join(os.path.dirname(__file__), 'config', 'squadron_callsigns.json')
         if os.path.exists(config_path):
             data = safe_json_read(config_path)
-            return data.get('callsigns', [])
+            callsigns = data.get('callsigns', [])
+            return callsigns if isinstance(callsigns, list) else []
     except Exception as e:
-        print(f"Warning: Could not load squadron callsigns: {e}")
+        logger.warning(f"Warning: Could not load squadron callsigns: {e}")
     
     return []
+
+def load_squadron_callsigns_safe() -> list:
+    """Load squadron callsigns from config file with safety checks"""
+    try:
+        callsigns = load_squadron_callsigns()
+        return callsigns if isinstance(callsigns, list) else []
+    except Exception as e:
+        logger.warning(f"Warning: Could not load squadron callsigns safely: {e}")
+        return []
 
 def save_squadron_callsigns(callsigns: list):
     """Save squadron callsigns to config file"""
@@ -799,7 +862,7 @@ def save_squadron_callsigns(callsigns: list):
         
         return True
     except Exception as e:
-        print(f"Error saving squadron callsigns: {e}")
+        logger.error(f"Error saving squadron callsigns: {e}")
         return False
 
 def is_mission_already_processed(mission_name: str, mission_date: str) -> bool:
@@ -811,7 +874,7 @@ def is_mission_already_processed(mission_name: str, mission_date: str) -> bool:
             mission_key = f"{mission_name}_{mission_date}"
             return mission_key in processed_missions
     except Exception as e:
-        print(f"Warning: Could not check processed missions: {e}")
+        logger.warning(f"Warning: Could not check processed missions: {e}")
     
     return False
 
@@ -847,4 +910,4 @@ def mark_mission_as_processed(mission_name: str, mission_date: str):
         safe_json_save(processed_file, processed_missions)
             
     except Exception as e:
-        print(f"Warning: Could not mark mission as processed: {e}")
+        logger.warning(f"Warning: Could not mark mission as processed: {e}")

@@ -1,0 +1,5 @@
+# DCS REST API Integration
+DCS_REST_API_ENABLED=true
+DCS_REST_API_URL=http://localhost:8080
+DCS_REST_API_TOKEN=loggers_rest_api_token_2024
+DCS_REST_API_TIMEOUT=30 

@@ -3,6 +3,8 @@ import json
 from collections import defaultdict
 from pathlib import Path
 import re
+import logging
+logger = logging.getLogger(__name__)
 
 # === CONFIG ===
 XML_INPUT_PATH = Path("testData.xml")  # Update this path
@@ -69,7 +71,7 @@ ground_types = {"Infantry", "SAM/AAA", "Vehicle", "Tank", "Artillery"}
 
 # Initialize per-pilot mission logs
 pilot_missions = defaultdict(lambda: {
-    "date": "2025-05-31",  # TODO: extract from XML if needed
+    "date": extract_date_from_xml(root) if root else "2025-05-31",  # TODO: extract from XML if needed
     "mission": "Final Strike",
     "flight_hours": "0:45",  # estimate
     "aa_kills": 0,
@@ -124,3 +126,8 @@ for profile_path in PROFILE_DIR.glob("*.json"):
     name = profile_path.stem
     if any(k in name.lower() for k in non_player_keywords):
         profile_path.unlink()
+
+def extract_date_from_xml(xml):
+    logger.info("extract_date_from_xml called, but not yet implemented.")
+    # Placeholder for XML date extraction logic
+    return "2025-05-31"

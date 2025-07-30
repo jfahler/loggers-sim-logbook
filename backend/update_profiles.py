@@ -2,9 +2,11 @@ import argparse
 from pathlib import Path
 from xml_parser import parse_tacview_xml
 from profile_manager import load_profile, save_profile, update_profile
+import logging
+logger = logging.getLogger(__name__)
 
 def is_player_client(pilot_name: str, aircraft_name: str, group: str = "") -> bool:
-    print(f"FILTER CHECK: {pilot_name}")
+    logger.info(f"FILTER CHECK: {pilot_name}")
     # ... rest of function ...
 
 def update_profiles_from_xml(xml_path, profile_dir):
@@ -49,4 +51,4 @@ if __name__ == "__main__":
     out_dir = Path(args.out)
 
     update_profiles_from_xml(xml_path, out_dir)
-    print(f"✅ Profiles updated from {xml_path.name} into {out_dir}/")
+    logger.info(f"✅ Profiles updated from {xml_path.name} into {out_dir}/")
