@@ -55,20 +55,6 @@ npm run dev
 
 The frontend will be available at `http://localhost:5173`
 
-### Quick Development Launcher
-
-Use the provided scripts to start both servers quickly:
-
-**Windows (PowerShell):**
-```powershell
-.\start-dev.ps1
-```
-
-**Windows (Command Prompt):**
-```cmd
-start-dev.bat
-```
-
 ## 📁 Project Structure
 
 ```
@@ -90,8 +76,6 @@ loggers-sim-logbook/
 │   ├── tailwind.config.js # Tailwind CSS configuration
 │   ├── postcss.config.js  # PostCSS configuration
 │   └── package.json      # Node dependencies
-├── start-dev.ps1          # PowerShell development launcher
-├── start-dev.bat          # Batch development launcher
 └── pilot_profiles/        # Legacy pilot profiles
 ```
 
@@ -227,4 +211,3 @@ This project is open source. See LICENSE file for details.
 ---
 
 **Status**: ✅ Fully functional with working CSS and API integration
-
